@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Headband Dataset Builder</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+    }
+    header {
+      padding: 14px 18px;
+      background: #1d1d1d;
+      border-bottom: 1px solid #333;
+    }
+    h1 { margin: 0 0 6px; font-size: 20px; }
+    p { margin: 4px 0; color: #bbb; font-size: 14px; }
+    main {
+      display: grid;
+      grid-template-columns: minmax(520px, 2fr) minmax(340px, 1fr);
+      gap: 14px;
+      padding: 14px;
+    }
+    .panel {
+      background: #1b1b1b;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+    }
+    video, canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .full { grid-column: 1 / -1; }
+    label { font-size: 13px; color: #ddd; display: block; margin-bottom: 4px; }
+    input, select, button {
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #252525;
+      color: white;
+      font-size: 14px;
+    }
+    button {
+      cursor: pointer;
+      background: #2d6cdf;
+      border: none;
+      font-weight: 700;
+    }
+    button.secondary { background: #444; }
+    button.danger { background: #8f2d2d; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .status {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: #101010;
+      border: 1px solid #333;
+      font-size: 13px;
+      color: #ccc;
+      min-height: 36px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .stat {
+      background: #101010;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 9px;
+      text-align: center;
+    }
+    .stat strong { display: block; font-size: 18px; }
+    .stat span { color: #aaa; font-size: 12px; }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+      gap: 8px;
+      max-height: 65vh;
+      overflow: auto;
+      margin-top: 10px;
+    }
+    .thumb {
+      background: #101010;
+      border: 1px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .thumb img { width: 100%; display: block; aspect-ratio: 1 / 1; object-fit: cover; }
+    .thumb div { padding: 4px; font-size: 11px; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .note {
+      padding: 10px;
+      background: #171717;
+      border-left: 3px solid #2d6cdf;
+      margin-top: 10px;
+      font-size: 13px;
+      color: #bbb;
+      line-height: 1.35;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Headband Dataset Builder</h1>
+    <p>Load a local video, detect people, crop head regions, and download labeled training images.</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="video-wrap">
+        <video id="video" controls muted playsinline></video>
+        <canvas id="overlay"></canvas>
+      </div>
+
+      <div class="controls">
+        <div class="full">
+          <label for="videoFile">Local video file</label>
+          <input id="videoFile" type="file" accept="video/*" />
+        </div>
+
+        <div>
+          <label for="labelSelect">Export label</label>
+          <select id="labelSelect">
+            <option value="headband">headband</option>
+            <option value="no_headband">no_headband</option>
+            <option value="unsure">unsure</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="cropMode">Crop mode</label>
+          <select id="cropMode">
+            <option value="box_top">Box top crop - current app</option>
+            <option value="pose_ready">Pose-ready wider head crop</option>
+            <option value="both">Export both crop styles</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="sampleEvery">Sample every N frames</label>
+          <input id="sampleEvery" type="number" value="15" min="1" max="300" />
+        </div>
+
+        <div>
+          <label for="scoreThreshold">Person score threshold</label>
+          <input id="scoreThreshold" type="number" value="0.40" min="0.05" max="0.95" step="0.05" />
+        </div>
+
+        <div>
+          <label for="headPercent">Box-top crop height</label>
+          <input id="headPercent" type="number" value="0.28" min="0.15" max="0.45" step="0.01" />
+        </div>
+
+        <div>
+          <label for="outputSize">Output image size</label>
+          <input id="outputSize" type="number" value="224" min="96" max="512" step="32" />
+        </div>
+
+        <button id="loadModelBtn">Load detector</button>
+        <button id="scanBtn" disabled>Scan paused frame</button>
+        <button id="autoBtn" disabled>Start auto export</button>
+        <button id="downloadBtn" class="secondary" disabled>Download crops</button>
+        <button id="clearBtn" class="danger">Clear crops</button>
+      </div>
+
+      <div id="status" class="status">Load a video and detector to begin.</div>
+
+      <div class="stats">
+        <div class="stat"><strong id="peopleCount">0</strong><span>people in frame</span></div>
+        <div class="stat"><strong id="cropCount">0</strong><span>saved crops</span></div>
+        <div class="stat"><strong id="frameCount">0</strong><span>frames scanned</span></div>
+      </div>
+
+      <div class="note">
+        Use <b>Box top crop</b> to match the current iPhone app. Use <b>Pose-ready wider head crop</b> to save a slightly larger head/shoulder region that can still work later if you switch to skeleton/keypoint cropping.
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2 style="font-size:16px; margin:0 0 8px;">Crop Preview</h2>
+      <p>Images are stored in memory until you download them. Download creates a ZIP with folders by label and crop mode.</p>
+      <div id="previewGrid" class="preview-grid"></div>
+    </aside>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+  <script>
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const ctx = overlay.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const videoFile = document.getElementById('videoFile');
+    const labelSelect = document.getElementById('labelSelect');
+    const cropMode = document.getElementById('cropMode');
+    const sampleEvery = document.getElementById('sampleEvery');
+    const scoreThreshold = document.getElementById('scoreThreshold');
+    const headPercent = document.getElementById('headPercent');
+    const outputSize = document.getElementById('outputSize');
+    const loadModelBtn = document.getElementById('loadModelBtn');
+    const scanBtn = document.getElementById('scanBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const previewGrid = document.getElementById('previewGrid');
+    const peopleCount = document.getElementById('peopleCount');
+    const cropCount = document.getElementById('cropCount');
+    const frameCount = document.getElementById('frameCount');
+
+    let detector = null;
+    let savedCrops = [];
+    let scannedFrames = 0;
+    let autoRunning = false;
+    let lastProcessedFrame = -1;
+
+    function setStatus(text) { statusEl.textContent = text; }
+
+    function resizeOverlay() {
+      overlay.width = video.clientWidth || 1280;
+      overlay.height = video.clientHeight || 720;
+      drawOverlay([]);
+    }
+
+    function getContainDimensions() {
+      const screenW = overlay.width;
+      const screenH = overlay.height;
+      const videoW = video.videoWidth || 16;
+      const videoH = video.videoHeight || 9;
+      const screenRatio = screenW / screenH;
+      const videoRatio = videoW / videoH;
+      let drawW, drawH, offsetX, offsetY;
+      if (screenRatio > videoRatio) {
+        drawH = screenH;
+        drawW = screenH * videoRatio;
+        offsetX = (screenW - drawW) / 2;
+        offsetY = 0;
+      } else {
+        drawW = screenW;
+        drawH = screenW / videoRatio;
+        offsetX = 0;
+        offsetY = (screenH - drawH) / 2;
+      }
+      return { drawW, drawH, offsetX, offsetY };
+    }
+
+    function clampRect(x, y, w, h, maxW, maxH) {
+      const nx = Math.max(0, Math.min(x, maxW - 1));
+      const ny = Math.max(0, Math.min(y, maxH - 1));
+      const nw = Math.max(1, Math.min(w, maxW - nx));
+      const nh = Math.max(1, Math.min(h, maxH - ny));
+      return { x: nx, y: ny, w: nw, h: nh };
+    }
+
+    function makeCropRects(person) {
+      const [x, y, w, h] = person.bbox;
+      const hp = Number(headPercent.value);
+      const boxTop = clampRect(x, y, w, h * hp, video.videoWidth, video.videoHeight);
+
+      // Wider crop includes head, neck, and shoulders. Useful if future pose model centers crops from nose/ears/shoulders.
+      const wideW = w * 0.68;
+      const wideH = h * 0.38;
+      const wideX = x + (w - wideW) / 2;
+      const wideY = y - h * 0.03;
+      const poseReady = clampRect(wideX, wideY, wideW, wideH, video.videoWidth, video.videoHeight);
+
+      if (cropMode.value === 'box_top') return [{ mode: 'box_top', rect: boxTop }];
+      if (cropMode.value === 'pose_ready') return [{ mode: 'pose_ready', rect: poseReady }];
+      return [{ mode: 'box_top', rect: boxTop }, { mode: 'pose_ready', rect: poseReady }];
+    }
+
+    function drawOverlay(people) {
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      if (!video.videoWidth) return;
+      const { drawW, drawH, offsetX, offsetY } = getContainDimensions();
+      const scaleX = drawW / video.videoWidth;
+      const scaleY = drawH / video.videoHeight;
+
+      for (const person of people) {
+        const [x, y, w, h] = person.bbox;
+        ctx.strokeStyle = 'lime';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x * scaleX + offsetX, y * scaleY + offsetY, w * scaleX, h * scaleY);
+        ctx.fillStyle = 'lime';
+        ctx.font = '13px Arial';
+        ctx.fillText(`${Math.round(person.score * 100)}%`, x * scaleX + offsetX + 4, y * scaleY + offsetY - 6);
+
+        const crops = makeCropRects(person);
+        for (const crop of crops) {
+          const r = crop.rect;
+          ctx.strokeStyle = crop.mode === 'box_top' ? 'yellow' : 'cyan';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(r.x * scaleX + offsetX, r.y * scaleY + offsetY, r.w * scaleX, r.h * scaleY);
+        }
+      }
+    }
+
+    function cropToBlob(rect) {
+      const size = Number(outputSize.value);
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const cctx = c.getContext('2d');
+      cctx.fillStyle = 'black';
+      cctx.fillRect(0, 0, size, size);
+
+      // Fit crop into square without distortion.
+      const scale = Math.min(size / rect.w, size / rect.h);
+      const drawW = rect.w * scale;
+      const drawH = rect.h * scale;
+      const dx = (size - drawW) / 2;
+      const dy = (size - drawH) / 2;
+      cctx.drawImage(video, rect.x, rect.y, rect.w, rect.h, dx, dy, drawW, drawH);
+
+      return new Promise(resolve => {
+        c.toBlob(blob => resolve({ blob, dataUrl: c.toDataURL('image/jpeg', 0.9) }), 'image/jpeg', 0.9);
+      });
+    }
+
+    async function scanFrame(save = true) {
+      if (!detector || !video.videoWidth) return;
+      const predictions = await detector.detect(video);
+      const threshold = Number(scoreThreshold.value);
+      const people = predictions.filter(p => p.class === 'person' && p.score >= threshold);
+      peopleCount.textContent = people.length;
+      scannedFrames += 1;
+      frameCount.textContent = scannedFrames;
+      drawOverlay(people);
+
+      if (!save) return people;
+
+      const label = labelSelect.value;
+      for (let i = 0; i < people.length; i++) {
+        const cropRects = makeCropRects(people[i]);
+        for (const crop of cropRects) {
+          const { blob, dataUrl } = await cropToBlob(crop.rect);
+          const timestamp = Math.round(video.currentTime * 1000);
+          const name = `${label}_${crop.mode}_t${timestamp}_p${i}_${savedCrops.length}.jpg`;
+          savedCrops.push({ label, mode: crop.mode, name, blob, dataUrl });
+          addPreview(dataUrl, name);
+        }
+      }
+      cropCount.textContent = savedCrops.length;
+      downloadBtn.disabled = savedCrops.length === 0;
+      setStatus(`Scanned frame: ${people.length} people, ${savedCrops.length} total crops saved.`);
+      return people;
+    }
+
+    function addPreview(dataUrl, name) {
+      const item = document.createElement('div');
+      item.className = 'thumb';
+      item.innerHTML = `<img src="${dataUrl}" alt="crop"><div title="${name}">${name}</div>`;
+      previewGrid.prepend(item);
+    }
+
+    async function autoLoop() {
+      if (!autoRunning) return;
+      if (video.paused || video.ended) {
+        autoRunning = false;
+        autoBtn.textContent = 'Start auto export';
+        setStatus('Auto export stopped. Video paused or ended.');
+        return;
+      }
+
+      const fpsGuess = 30;
+      const currentFrame = Math.floor(video.currentTime * fpsGuess);
+      const every = Math.max(1, Number(sampleEvery.value));
+      if (currentFrame !== lastProcessedFrame && currentFrame % every === 0) {
+        lastProcessedFrame = currentFrame;
+        await scanFrame(true);
+      }
+      requestAnimationFrame(autoLoop);
+    }
+
+    videoFile.addEventListener('change', () => {
+      const file = videoFile.files[0];
+      if (!file) return;
+      video.src = URL.createObjectURL(file);
+      setStatus(`Loaded video: ${file.name}`);
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      resizeOverlay();
+      scanBtn.disabled = !detector;
+      autoBtn.disabled = !detector;
+    });
+
+    window.addEventListener('resize', resizeOverlay);
+
+    loadModelBtn.addEventListener('click', async () => {
+      loadModelBtn.disabled = true;
+      setStatus('Loading COCO-SSD person detector...');
+      try {
+        detector = await cocoSsd.load({ base: 'mobilenet_v2' });
+        setStatus('Detector loaded. Load a video, then scan or start auto export.');
+        scanBtn.disabled = !video.videoWidth;
+        autoBtn.disabled = !video.videoWidth;
+      } catch (err) {
+        setStatus('Detector load error: ' + err.message);
+        loadModelBtn.disabled = false;
+      }
+    });
+
+    scanBtn.addEventListener('click', () => scanFrame(true));
+
+    autoBtn.addEventListener('click', async () => {
+      if (!detector || !video.videoWidth) return;
+      autoRunning = !autoRunning;
+      if (autoRunning) {
+        autoBtn.textContent = 'Stop auto export';
+        setStatus('Auto export running. Play the video if it is paused.');
+        if (video.paused) await video.play();
+        autoLoop();
+      } else {
+        autoBtn.textContent = 'Start auto export';
+        setStatus('Auto export stopped.');
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      savedCrops = [];
+      previewGrid.innerHTML = '';
+      cropCount.textContent = '0';
+      downloadBtn.disabled = true;
+      setStatus('Cleared saved crops.');
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+      if (!savedCrops.length) return;
+      setStatus('Building ZIP...');
+      const zip = new JSZip();
+      for (const crop of savedCrops) {
+        zip.file(`${crop.label}/${crop.mode}/${crop.name}`, crop.blob);
+      }
+      const manifest = savedCrops.map(c => ({ label: c.label, mode: c.mode, filename: `${c.label}/${c.mode}/${c.name}` }));
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(zipBlob);
+      a.download = `headband_dataset_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setStatus('ZIP downloaded.');
+    });
+  </script>
+</body>
+</html>

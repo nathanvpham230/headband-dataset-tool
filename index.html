@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Headband Dataset Builder - Detection Cropper</title>
+  <title>Headband Dataset Builder</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #eee; }
     header { padding: 14px 18px; background: #1d1d1d; border-bottom: 1px solid #333; }
     h1 { margin: 0 0 6px; font-size: 20px; }
     p { margin: 4px 0; color: #bbb; font-size: 14px; }
-    main { display: grid; grid-template-columns: minmax(520px, 2fr) minmax(340px, 1fr); gap: 14px; padding: 14px; }
+    main { display: grid; grid-template-columns: minmax(520px, 2fr) minmax(360px, 1fr); gap: 14px; padding: 14px; }
     .panel { background: #1b1b1b; border: 1px solid #333; border-radius: 10px; padding: 12px; }
     .video-wrap { position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 9; }
     video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
@@ -27,25 +27,39 @@
     button { cursor: pointer; background: #2d6cdf; border: none; font-weight: 700; }
     button.secondary { background: #444; }
     button.danger { background: #8f2d2d; }
+    button.success { background: #2d8f55; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
     .status { margin-top: 10px; padding: 9px 10px; border-radius: 8px; background: #101010; border: 1px solid #333; font-size: 13px; color: #ccc; min-height: 36px; }
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
     .stat { background: #101010; border: 1px solid #333; border-radius: 8px; padding: 9px; text-align: center; }
     .stat strong { display: block; font-size: 18px; }
     .stat span { color: #aaa; font-size: 12px; }
-    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; max-height: 65vh; overflow: auto; margin-top: 10px; }
-    .thumb { background: #101010; border: 1px solid #333; border-radius: 8px; overflow: hidden; position: relative; }
+    .preview-tools { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: end; margin-top: 10px; }
+    .preview-tools button { min-width: 84px; }
+    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; max-height: 65vh; overflow: auto; margin-top: 10px; }
+    .thumb { background: #101010; border: 3px solid #333; border-radius: 8px; overflow: hidden; position: relative; user-select: none; }
+    .thumb.selected { box-shadow: 0 0 0 3px white; }
+    .thumb[data-label="headband"] { border-color: #98ff00; }
+    .thumb[data-label="no_headband"] { border-color: #935cff; }
+    .thumb[data-label="unsure"] { border-color: #ff2d79; }
     .thumb img { width: 100%; display: block; aspect-ratio: 1 / 1; object-fit: cover; }
-    .thumb div { padding: 4px; font-size: 11px; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .thumb button { position: absolute; top: 4px; right: 4px; width: auto; padding: 2px 6px; border-radius: 5px; background: #8f2d2d; font-size: 11px; }
+    .thumb .meta { padding: 4px; font-size: 11px; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .thumb .delete { position: absolute; top: 4px; right: 4px; width: auto; padding: 2px 6px; border-radius: 5px; background: #8f2d2d; font-size: 11px; }
+    .thumb .crop-actions { display: grid; grid-template-columns: 1fr auto; gap: 4px; padding: 4px; background: rgba(0,0,0,0.55); }
+    .thumb .toggle-label { width: 100%; padding: 4px 6px; border-radius: 5px; font-size: 11px; line-height: 1.1; background: #444; }
+    .thumb[data-label="headband"] .toggle-label { background: #2d8f55; }
+    .thumb[data-label="no_headband"] .toggle-label { background: #5d3cc7; }
+    .thumb[data-label="unsure"] .toggle-label { background: #a62d5f; }
+    .thumb select { font-size: 11px; padding: 3px; border-radius: 5px; border: 1px solid #444; background: rgba(0,0,0,0.75); }
     .note { padding: 10px; background: #171717; border-left: 3px solid #2d6cdf; margin-top: 10px; font-size: 13px; color: #bbb; line-height: 1.35; }
+    .inline-row { display: flex; gap: 8px; align-items: center; }
     @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>Headband Dataset Builder - Detection Cropper</h1>
-    <p>Load a local video, choose COCO person detection or MoveNet MultiPose, crop head regions, and download labeled training images.</p>
+    <h1>Headband Dataset Builder</h1>
+    <p>Load a local video, choose COCO person detection or MoveNet skeleton detection, crop head regions, relabel crops, and download a Roboflow-ready ZIP.</p>
   </header>
 
   <main>
@@ -74,7 +88,15 @@
         </div>
 
         <div>
-          <label for="labelSelect">Export label</label>
+          <label for="detectorSelect">Detection model</label>
+          <select id="detectorSelect">
+            <option value="skeleton">Skeleton pose detection - MoveNet MultiPose</option>
+            <option value="coco">Person detection - COCO-SSD boxes</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="labelSelect">Default export label</label>
           <select id="labelSelect">
             <option value="headband">headband</option>
             <option value="no_headband">no_headband</option>
@@ -83,17 +105,9 @@
         </div>
 
         <div>
-          <label for="detectorMode">Detection model</label>
-          <select id="detectorMode">
-            <option value="skeleton">Skeleton pose detection</option>
-            <option value="person">COCO person detection</option>
-          </select>
-        </div>
-
-        <div>
           <label for="cropMode">Crop mode</label>
           <select id="cropMode">
-            <option value="head_only">Head only / top of person box</option>
+            <option value="head_only">Head only</option>
             <option value="head_shoulders">Head + shoulders context</option>
           </select>
         </div>
@@ -101,6 +115,19 @@
         <div>
           <label for="sampleEvery">Sample every N video frames</label>
           <input id="sampleEvery" type="number" value="15" min="1" max="300" />
+        </div>
+
+        <div>
+          <label for="autoSpeed">Auto export playback speed</label>
+          <select id="autoSpeed">
+            <option value="0.25">0.25x</option>
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+          </select>
         </div>
 
         <div>
@@ -115,7 +142,7 @@
 
         <div>
           <label for="personThreshold">Person score threshold</label>
-          <input id="personThreshold" type="number" value="0.40" min="0.05" max="0.90" step="0.05" />
+          <input id="personThreshold" type="number" value="0.40" min="0.05" max="0.95" step="0.05" />
         </div>
 
         <div>
@@ -128,14 +155,14 @@
           <input id="outputSize" type="number" value="224" min="96" max="512" step="32" />
         </div>
 
-        <button id="loadModelBtn">Load detection model</button>
+        <button id="loadModelBtn">Load selected model</button>
         <button id="scanBtn" disabled>Scan paused frame</button>
         <button id="autoBtn" disabled>Start auto export</button>
         <button id="downloadBtn" class="secondary" disabled>Download crops</button>
         <button id="clearBtn" class="danger">Clear crops</button>
       </div>
 
-      <div id="status" class="status">Load a video and skeleton model to begin.</div>
+      <div id="status" class="status">Load a video and detection model to begin.</div>
 
       <div class="stats">
         <div class="stat"><strong id="peopleCount">0</strong><span>detections in frame</span></div>
@@ -144,13 +171,30 @@
       </div>
 
       <div class="note">
-        This version can use either <b>MoveNet MultiPose Lightning</b> or <b>COCO-SSD person detection</b> before cropping. Skeleton mode crops from head keypoints. COCO mode crops from the top region of each person box. The ZIP uses only top-level class folders, so Roboflow should create only <b>headband</b>, <b>no_headband</b>, and <b>unsure</b> classes.
+        ZIP output uses only top-level class folders: <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b>. Crop method and detector type are stored in the filename and manifest, not as folders, so Roboflow will not create accidental classes.
       </div>
     </section>
 
     <aside class="panel">
       <h2 style="font-size:16px; margin:0 0 8px;">Crop Preview</h2>
-      <p>Click X on a crop to remove it before download.</p>
+      <p>Select crops, mass assign labels, toggle individual labels, delete bad crops, then download.</p>
+      <div class="preview-tools">
+        <div>
+          <label for="bulkLabelSelect">Mass assign selected</label>
+          <select id="bulkLabelSelect">
+            <option value="headband">headband</option>
+            <option value="no_headband">no_headband</option>
+            <option value="unsure">unsure</option>
+          </select>
+        </div>
+        <button id="applyBulkBtn" class="success">Apply</button>
+        <button id="deleteSelectedBtn" class="danger">Delete</button>
+      </div>
+      <div class="inline-row" style="margin-top:8px;">
+        <button id="selectAllBtn" class="secondary">Select all</button>
+        <button id="selectNoneBtn" class="secondary">Select none</button>
+      </div>
+      <p style="font-size:12px; margin-top:8px;">Hotkeys: <b>1</b> = headband, <b>2</b> = no_headband, <b>3</b> = unsure, <b>Delete</b> = delete selected. Click a crop label button to cycle its label.</p>
       <div id="previewGrid" class="preview-grid"></div>
     </aside>
   </main>
@@ -173,10 +217,11 @@
     const back1Btn = document.getElementById('back1Btn');
     const forward1Btn = document.getElementById('forward1Btn');
     const forward10Btn = document.getElementById('forward10Btn');
+    const detectorSelect = document.getElementById('detectorSelect');
     const labelSelect = document.getElementById('labelSelect');
-    const detectorMode = document.getElementById('detectorMode');
     const cropMode = document.getElementById('cropMode');
     const sampleEvery = document.getElementById('sampleEvery');
+    const autoSpeed = document.getElementById('autoSpeed');
     const kpThreshold = document.getElementById('kpThreshold');
     const poseThreshold = document.getElementById('poseThreshold');
     const personThreshold = document.getElementById('personThreshold');
@@ -191,14 +236,28 @@
     const peopleCount = document.getElementById('peopleCount');
     const cropCount = document.getElementById('cropCount');
     const frameCount = document.getElementById('frameCount');
+    const bulkLabelSelect = document.getElementById('bulkLabelSelect');
+    const applyBulkBtn = document.getElementById('applyBulkBtn');
+    const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const selectNoneBtn = document.getElementById('selectNoneBtn');
 
-    let poseDetector = null;
+    let skeletonDetector = null;
     let personDetector = null;
+    let loadedDetectorType = null;
     let savedCrops = [];
     let scannedFrames = 0;
     let autoRunning = false;
     let lastProcessedFrame = -1;
     let isScrubbing = false;
+
+    const skeletonEdges = [
+      ['nose','left_eye'], ['nose','right_eye'], ['left_eye','left_ear'], ['right_eye','right_ear'],
+      ['left_shoulder','right_shoulder'], ['left_shoulder','left_elbow'], ['left_elbow','left_wrist'],
+      ['right_shoulder','right_elbow'], ['right_elbow','right_wrist'], ['left_shoulder','left_hip'],
+      ['right_shoulder','right_hip'], ['left_hip','right_hip'], ['left_hip','left_knee'],
+      ['left_knee','left_ankle'], ['right_hip','right_knee'], ['right_knee','right_ankle']
+    ];
 
     function setStatus(text) { statusEl.textContent = text; }
 
@@ -224,6 +283,12 @@
       back1Btn.disabled = !enabled;
       forward1Btn.disabled = !enabled;
       forward10Btn.disabled = !enabled;
+    }
+
+    function updateActionButtons() {
+      const ready = Boolean(video.videoWidth && loadedDetectorType);
+      scanBtn.disabled = !ready;
+      autoBtn.disabled = !ready;
     }
 
     function seekBy(seconds) {
@@ -285,12 +350,12 @@
       const shoulderPoints = [k.left_shoulder, k.right_shoulder].filter(good);
       if (headPoints.length < 1) return null;
 
-      let xs = headPoints.map(p => p.x);
-      let ys = headPoints.map(p => p.y);
-      let minX = Math.min(...xs);
-      let maxX = Math.max(...xs);
-      let minY = Math.min(...ys);
-      let maxY = Math.max(...ys);
+      const xs = headPoints.map(p => p.x);
+      const ys = headPoints.map(p => p.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
 
       const shoulderWidth = shoulderPoints.length === 2 ? Math.abs(shoulderPoints[0].x - shoulderPoints[1].x) : 0;
       const faceWidth = Math.max(maxX - minX, shoulderWidth * 0.33, 32);
@@ -308,33 +373,25 @@
         centerY += cropH * 0.08;
       }
 
-      const x = centerX - cropW / 2;
-      const y = centerY - cropH / 2;
-      return clampRect(x, y, cropW, cropH, video.videoWidth, video.videoHeight);
+      return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
     }
 
-    function makePersonCropRect(person) {
-      const [bx, by, bw, bh] = person.bbox;
+    function makeCocoCropRect(prediction) {
+      const [bx, by, bw, bh] = prediction.bbox;
       const scale = Number(cropScale.value);
-
-      let cropW;
-      let cropH;
+      let cropW = bw * 0.34 * scale;
+      let cropH = cropW;
       let centerX = bx + bw / 2;
-      let centerY;
+      let centerY = by + bh * 0.16;
 
       if (cropMode.value === 'head_shoulders') {
-        cropW = bw * 0.72 * scale;
-        cropH = cropW * 1.10;
-        centerY = by + bh * 0.22;
-      } else {
-        cropW = bw * 0.45 * scale;
-        cropH = cropW;
-        centerY = by + bh * 0.13;
+        cropW = bw * 0.55 * scale;
+        cropH = cropW * 1.15;
+        centerY = by + bh * 0.24;
       }
-
-      const x = centerX - cropW / 2;
-      const y = centerY - cropH / 2;
-      return clampRect(x, y, cropW, cropH, video.videoWidth, video.videoHeight);
+      cropW = Math.max(32, cropW);
+      cropH = Math.max(32, cropH);
+      return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
     }
 
     function drawOverlay(detections) {
@@ -344,55 +401,49 @@
       const scaleX = drawW / video.videoWidth;
       const scaleY = drawH / video.videoHeight;
 
-      if (detectorMode.value === 'person') {
-        for (const person of detections) {
-          const [bx, by, bw, bh] = person.bbox;
-          const rect = makePersonCropRect(person);
-
-          ctx.strokeStyle = 'lime';
+      if (loadedDetectorType === 'skeleton') {
+        detections.forEach((pose, index) => {
+          const k = keypointMap(pose);
+          ctx.strokeStyle = 'rgba(0,255,0,0.9)';
           ctx.lineWidth = 2;
-          ctx.strokeRect(bx * scaleX + offsetX, by * scaleY + offsetY, bw * scaleX, bh * scaleY);
-          ctx.fillStyle = 'lime';
-          ctx.font = '13px Arial';
-          ctx.fillText(`${Math.round(person.score * 100)}%`, bx * scaleX + offsetX + 4, by * scaleY + offsetY - 5);
-
+          for (const [a, b] of skeletonEdges) {
+            if (!good(k[a]) || !good(k[b])) continue;
+            ctx.beginPath();
+            ctx.moveTo(k[a].x * scaleX + offsetX, k[a].y * scaleY + offsetY);
+            ctx.lineTo(k[b].x * scaleX + offsetX, k[b].y * scaleY + offsetY);
+            ctx.stroke();
+          }
+          for (const kp of pose.keypoints || []) {
+            if (!good(kp)) continue;
+            ctx.fillStyle = ['nose','left_eye','right_eye','left_ear','right_ear'].includes(kp.name) ? 'red' : 'lime';
+            ctx.beginPath();
+            ctx.arc(kp.x * scaleX + offsetX, kp.y * scaleY + offsetY, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          const rect = makeSkeletonCropRect(pose);
           if (rect) {
             ctx.strokeStyle = 'yellow';
             ctx.lineWidth = 2;
             ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
+            ctx.fillStyle = 'yellow';
+            ctx.font = '14px Arial';
+            ctx.fillText(`Pose ${index + 1}`, rect.x * scaleX + offsetX + 4, rect.y * scaleY + offsetY - 6);
           }
-        }
-        return;
-      }
-
-      for (const pose of detections) {
-        const rect = makeSkeletonCropRect(pose);
-
-        const adjacentPairs = poseDetection.util.getAdjacentPairs(poseDetection.SupportedModels.MoveNet);
-        ctx.strokeStyle = 'cyan';
-        ctx.lineWidth = 2;
-        for (const [i, j] of adjacentPairs) {
-          const kp1 = pose.keypoints[i];
-          const kp2 = pose.keypoints[j];
-          if (!good(kp1) || !good(kp2)) continue;
-          ctx.beginPath();
-          ctx.moveTo(kp1.x * scaleX + offsetX, kp1.y * scaleY + offsetY);
-          ctx.lineTo(kp2.x * scaleX + offsetX, kp2.y * scaleY + offsetY);
-          ctx.stroke();
-        }
-
-        for (const kp of pose.keypoints || []) {
-          if (!good(kp)) continue;
-          ctx.fillStyle = ['nose','left_eye','right_eye','left_ear','right_ear'].includes(kp.name) ? 'red' : 'lime';
-          ctx.beginPath();
-          ctx.arc(kp.x * scaleX + offsetX, kp.y * scaleY + offsetY, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        if (rect) {
+        });
+      } else if (loadedDetectorType === 'coco') {
+        detections.forEach((person, index) => {
+          const [bx, by, bw, bh] = person.bbox;
+          ctx.strokeStyle = 'lime';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(bx * scaleX + offsetX, by * scaleY + offsetY, bw * scaleX, bh * scaleY);
+          ctx.fillStyle = 'lime';
+          ctx.font = '14px Arial';
+          ctx.fillText(`Person ${index + 1} ${Math.round(person.score * 100)}%`, bx * scaleX + offsetX + 4, by * scaleY + offsetY - 6);
+          const rect = makeCocoCropRect(person);
           ctx.strokeStyle = 'yellow';
           ctx.lineWidth = 2;
           ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
-        }
+        });
       }
     }
 
@@ -415,29 +466,26 @@
       });
     }
 
-    function activeDetectorReady() {
-      return detectorMode.value === 'person' ? !!personDetector : !!poseDetector;
-    }
-
-    async function estimateDetections() {
-      if (detectorMode.value === 'person') {
-        const predictions = await personDetector.detect(video);
-        const threshold = Number(personThreshold.value);
-        return predictions.filter(p => p.class === 'person' && p.score >= threshold && makePersonCropRect(p));
+    async function getDetections() {
+      if (loadedDetectorType === 'skeleton') {
+        const posesRaw = await skeletonDetector.estimatePoses(video, { maxPoses: 20, flipHorizontal: false });
+        const threshold = Number(poseThreshold.value);
+        return posesRaw.filter(p => (p.score == null || p.score >= threshold) && makeSkeletonCropRect(p));
       }
-
-      const posesRaw = await poseDetector.estimatePoses(video, { maxPoses: 20, flipHorizontal: false });
-      const threshold = Number(poseThreshold.value);
-      return posesRaw.filter(p => (p.score == null || p.score >= threshold) && makeSkeletonCropRect(p));
+      if (loadedDetectorType === 'coco') {
+        const predictions = await personDetector.detect(video);
+        return predictions.filter(p => p.class === 'person' && p.score >= Number(personThreshold.value));
+      }
+      return [];
     }
 
-    function rectForDetection(detection) {
-      return detectorMode.value === 'person' ? makePersonCropRect(detection) : makeSkeletonCropRect(detection);
+    function rectForDetection(det) {
+      return loadedDetectorType === 'skeleton' ? makeSkeletonCropRect(det) : makeCocoCropRect(det);
     }
 
     async function scanFrame(save = true) {
-      if (!activeDetectorReady() || !video.videoWidth) return;
-      const detections = await estimateDetections();
+      if (!loadedDetectorType || !video.videoWidth) return [];
+      const detections = await getDetections();
       peopleCount.textContent = detections.length;
       scannedFrames += 1;
       frameCount.textContent = scannedFrames;
@@ -446,54 +494,152 @@
       if (!save) return detections;
 
       const label = labelSelect.value;
-      const mode = detectorMode.value + '_' + cropMode.value;
+      const mode = cropMode.value;
+      const detectorType = loadedDetectorType;
       for (let i = 0; i < detections.length; i++) {
         const rect = rectForDetection(detections[i]);
         if (!rect) continue;
         const { blob, dataUrl } = await cropToBlob(rect);
         const timestamp = Math.round(video.currentTime * 1000);
         const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        const name = `${label}_${mode}_t${timestamp}_p${i}_${id}.jpg`;
-        savedCrops.push({ label, mode, name, blob, dataUrl });
-        addPreview(dataUrl, name, savedCrops.length - 1);
+        const name = `${label}_${detectorType}_${mode}_t${timestamp}_p${i}_${id}.jpg`;
+        savedCrops.push({ label, mode, detectorType, name, blob, dataUrl, selected: false });
+        addPreview(savedCrops.length - 1);
       }
-      refreshPreviewIndexes();
-      cropCount.textContent = savedCrops.length;
-      downloadBtn.disabled = savedCrops.length === 0;
-      setStatus(`Scanned frame with ${detectorMode.value}: ${detections.length} detections, ${savedCrops.length} total crops saved.`);
+      refreshPreview();
+      setStatus(`Scanned frame: ${detections.length} detections, ${savedCrops.length} total crops saved.`);
       return detections;
     }
 
-    function addPreview(dataUrl, name, index) {
+    function addPreview(index) {
+      const crop = savedCrops[index];
       const item = document.createElement('div');
       item.className = 'thumb';
       item.dataset.index = index;
-      item.innerHTML = `<button title="delete crop">X</button><img src="${dataUrl}" alt="crop"><div title="${name}">${name}</div>`;
-      item.querySelector('button').addEventListener('click', () => {
+      item.dataset.label = crop.label;
+      item.innerHTML = `
+        <button class="delete" title="delete crop">X</button>
+        <img src="${crop.dataUrl}" alt="crop">
+        <div class="crop-actions">
+          <button class="toggle-label" title="Cycle label">${crop.label}</button>
+          <select class="crop-label" title="Set label">
+            <option value="headband">headband</option>
+            <option value="no_headband">no_headband</option>
+            <option value="unsure">unsure</option>
+          </select>
+        </div>
+        <div class="meta" title="${crop.name}">${crop.name}</div>`;
+      item.querySelector('.crop-label').value = crop.label;
+      item.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+        const idx = Number(item.dataset.index);
+        savedCrops[idx].selected = !savedCrops[idx].selected;
+        refreshPreview();
+      });
+      item.querySelector('.delete').addEventListener('click', () => {
         const idx = Number(item.dataset.index);
         savedCrops.splice(idx, 1);
-        item.remove();
-        refreshPreviewIndexes();
-        cropCount.textContent = savedCrops.length;
-        downloadBtn.disabled = savedCrops.length === 0;
+        refreshPreview();
+      });
+      item.querySelector('.toggle-label').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = Number(item.dataset.index);
+        cycleCropLabel(idx);
+        refreshPreview();
+      });
+      item.querySelector('.crop-label').addEventListener('change', (e) => {
+        const idx = Number(item.dataset.index);
+        relabelCrop(idx, e.target.value);
+        refreshPreview();
       });
       previewGrid.prepend(item);
     }
 
-    function refreshPreviewIndexes() {
-      const items = Array.from(previewGrid.querySelectorAll('.thumb'));
-      items.forEach(item => {
-        const img = item.querySelector('img');
-        const name = item.querySelector('div').title;
-        const idx = savedCrops.findIndex(c => c.name === name && c.dataUrl === img.src);
-        item.dataset.index = idx;
+    function relabelCrop(index, newLabel) {
+      const crop = savedCrops[index];
+      if (!crop) return;
+      const parts = crop.name.split('_');
+      parts[0] = newLabel;
+      if (newLabel === 'no_headband') {
+        crop.name = crop.name.replace(/^(headband|no_headband|unsure)_/, 'no_headband_');
+      } else {
+        crop.name = crop.name.replace(/^(headband|no_headband|unsure)_/, `${newLabel}_`);
+      }
+      crop.label = newLabel;
+    }
+
+
+
+    function cycleCropLabel(index) {
+      const crop = savedCrops[index];
+      if (!crop) return;
+      const labels = ['headband', 'no_headband', 'unsure'];
+      const current = labels.indexOf(crop.label);
+      const next = labels[(current + 1) % labels.length];
+      relabelCrop(index, next);
+    }
+
+    function refreshPreview() {
+      previewGrid.innerHTML = '';
+      savedCrops.forEach((crop, index) => {
+        const item = document.createElement('div');
+        item.className = `thumb${crop.selected ? ' selected' : ''}`;
+        item.dataset.index = index;
+        item.dataset.label = crop.label;
+        item.innerHTML = `
+          <button class="delete" title="delete crop">X</button>
+          <img src="${crop.dataUrl}" alt="crop">
+          <div class="crop-actions">
+            <button class="toggle-label" title="Cycle label">${crop.label}</button>
+            <select class="crop-label" title="Set label">
+              <option value="headband">headband</option>
+              <option value="no_headband">no_headband</option>
+              <option value="unsure">unsure</option>
+            </select>
+          </div>
+          <div class="meta" title="${crop.name}">${crop.name}</div>`;
+        item.querySelector('.crop-label').value = crop.label;
+        item.addEventListener('click', (e) => {
+          if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+          savedCrops[index].selected = !savedCrops[index].selected;
+          refreshPreview();
+        });
+        item.querySelector('.delete').addEventListener('click', () => {
+          savedCrops.splice(index, 1);
+          refreshPreview();
+        });
+        item.querySelector('.toggle-label').addEventListener('click', (e) => {
+          e.stopPropagation();
+          cycleCropLabel(index);
+          refreshPreview();
+        });
+        item.querySelector('.crop-label').addEventListener('change', (e) => {
+          relabelCrop(index, e.target.value);
+          refreshPreview();
+        });
+        previewGrid.prepend(item);
       });
+      cropCount.textContent = savedCrops.length;
+      downloadBtn.disabled = savedCrops.length === 0;
+    }
+
+    function applyLabelToSelected(label) {
+      savedCrops.forEach((crop, index) => {
+        if (crop.selected) relabelCrop(index, label);
+      });
+      refreshPreview();
+    }
+
+    function deleteSelected() {
+      savedCrops = savedCrops.filter(c => !c.selected);
+      refreshPreview();
     }
 
     async function autoLoop() {
       if (!autoRunning) return;
       if (video.paused || video.ended) {
         autoRunning = false;
+        video.playbackRate = 1;
         autoBtn.textContent = 'Start auto export';
         setStatus('Auto export stopped. Video paused or ended.');
         return;
@@ -522,8 +668,7 @@
       resizeOverlay();
       setVideoControlsEnabled(true);
       updateTimelineUI();
-      scanBtn.disabled = !activeDetectorReady();
-      autoBtn.disabled = !activeDetectorReady();
+      updateActionButtons();
     });
 
     video.addEventListener('timeupdate', updateTimelineUI);
@@ -551,53 +696,53 @@
       video.currentTime = Number(timeline.value);
       lastProcessedFrame = -1;
       updateTimelineUI();
-      if (activeDetectorReady() && video.videoWidth) scanFrame(false);
+      if (loadedDetectorType && video.videoWidth) scanFrame(false);
     });
 
     back10Btn.addEventListener('click', () => seekBy(-10));
     back1Btn.addEventListener('click', () => seekBy(-1));
     forward1Btn.addEventListener('click', () => seekBy(1));
     forward10Btn.addEventListener('click', () => seekBy(10));
-
     window.addEventListener('resize', resizeOverlay);
 
-    detectorMode.addEventListener('change', () => {
+    detectorSelect.addEventListener('change', () => {
+      loadedDetectorType = null;
+      scanBtn.disabled = true;
+      autoBtn.disabled = true;
       drawOverlay([]);
-      peopleCount.textContent = '0';
-      const ready = activeDetectorReady();
-      scanBtn.disabled = !ready || !video.videoWidth;
-      autoBtn.disabled = !ready || !video.videoWidth;
-      loadModelBtn.disabled = ready;
-      if (ready) {
-        setStatus(`${detectorMode.value === 'person' ? 'COCO person detector' : 'Skeleton model'} already loaded.`);
-      } else {
-        setStatus(`Selected ${detectorMode.value}. Click Load detection model.`);
-      }
+      loadModelBtn.disabled = false;
+      loadModelBtn.textContent = 'Load selected model';
+      setStatus('Detection model changed. Click Load selected model.');
     });
 
     loadModelBtn.addEventListener('click', async () => {
+      const type = detectorSelect.value;
       loadModelBtn.disabled = true;
-      const mode = detectorMode.value;
-      setStatus(mode === 'person' ? 'Loading COCO-SSD person detector...' : 'Loading MoveNet MultiPose Lightning skeleton model...');
       try {
         await tf.setBackend('webgl');
         await tf.ready();
-
-        if (mode === 'person') {
-          personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
-          setStatus('COCO person detector loaded. Load a video, then scan or start auto export.');
+        if (type === 'skeleton') {
+          setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
+          if (!skeletonDetector) {
+            skeletonDetector = await poseDetection.createDetector(
+              poseDetection.SupportedModels.MoveNet,
+              { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
+            );
+          }
+          loadedDetectorType = 'skeleton';
+          setStatus('Skeleton model loaded. Scan a paused frame or start auto export.');
         } else {
-          poseDetector = await poseDetection.createDetector(
-            poseDetection.SupportedModels.MoveNet,
-            { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
-          );
-          setStatus('Skeleton model loaded. Load a video, then scan or start auto export.');
+          setStatus('Loading COCO-SSD person detector...');
+          if (!personDetector) {
+            personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
+          }
+          loadedDetectorType = 'coco';
+          setStatus('COCO person detector loaded. Scan a paused frame or start auto export.');
         }
-
-        scanBtn.disabled = !video.videoWidth;
-        autoBtn.disabled = !video.videoWidth;
+        loadModelBtn.textContent = 'Model loaded';
+        updateActionButtons();
       } catch (err) {
-        setStatus('Detection model load error: ' + err.message);
+        setStatus('Model load error: ' + err.message);
         loadModelBtn.disabled = false;
       }
     });
@@ -605,25 +750,42 @@
     scanBtn.addEventListener('click', () => scanFrame(true));
 
     autoBtn.addEventListener('click', async () => {
-      if (!activeDetectorReady() || !video.videoWidth) return;
+      if (!loadedDetectorType || !video.videoWidth) return;
       autoRunning = !autoRunning;
       if (autoRunning) {
         autoBtn.textContent = 'Stop auto export';
-        setStatus('Auto export running. Play the video if it is paused.');
+        video.playbackRate = Number(autoSpeed.value);
+        setStatus(`Auto export running at ${video.playbackRate}x. Lower speed if detections miss people.`);
         if (video.paused) await video.play();
         autoLoop();
       } else {
         autoBtn.textContent = 'Start auto export';
+        video.playbackRate = 1;
         setStatus('Auto export stopped.');
       }
     });
 
+    autoSpeed.addEventListener('change', () => {
+      if (autoRunning) video.playbackRate = Number(autoSpeed.value);
+    });
+
     clearBtn.addEventListener('click', () => {
       savedCrops = [];
-      previewGrid.innerHTML = '';
-      cropCount.textContent = '0';
-      downloadBtn.disabled = true;
+      refreshPreview();
       setStatus('Cleared saved crops.');
+    });
+
+    applyBulkBtn.addEventListener('click', () => applyLabelToSelected(bulkLabelSelect.value));
+    deleteSelectedBtn.addEventListener('click', deleteSelected);
+    selectAllBtn.addEventListener('click', () => { savedCrops.forEach(c => c.selected = true); refreshPreview(); });
+    selectNoneBtn.addEventListener('click', () => { savedCrops.forEach(c => c.selected = false); refreshPreview(); });
+
+    document.addEventListener('keydown', (e) => {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+      if (e.key === '1') applyLabelToSelected('headband');
+      if (e.key === '2') applyLabelToSelected('no_headband');
+      if (e.key === '3') applyLabelToSelected('unsure');
+      if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
     });
 
     downloadBtn.addEventListener('click', async () => {
@@ -631,15 +793,19 @@
       setStatus('Building ZIP...');
       const zip = new JSZip();
       for (const crop of savedCrops) {
-        // Important: label is the only folder level. This prevents crop modes from becoming Roboflow classes.
         zip.file(`${crop.label}/${crop.name}`, crop.blob);
       }
-      const manifest = savedCrops.map(c => ({ label: c.label, mode: c.mode, filename: `${c.label}/${c.name}` }));
+      const manifest = savedCrops.map(c => ({
+        label: c.label,
+        mode: c.mode,
+        detector: c.detectorType,
+        filename: `${c.label}/${c.name}`
+      }));
       zip.file('manifest.json', JSON.stringify(manifest, null, 2));
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(zipBlob);
-      a.download = `headband_skeleton_dataset_${Date.now()}.zip`;
+      a.download = `headband_dataset_${Date.now()}.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();

@@ -53,19 +53,38 @@
     .thumb select { font-size: 11px; padding: 3px; border-radius: 5px; border: 1px solid #444; background: rgba(0,0,0,0.75); }
     .note { padding: 10px; background: #171717; border-left: 3px solid #2d6cdf; margin-top: 10px; font-size: 13px; color: #bbb; line-height: 1.35; }
     .inline-row { display: flex; gap: 8px; align-items: center; }
-    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .review-summary { margin-top: 8px; font-size: 12px; color: #bbb; }
+    .thumb.reviewed::after { content: '✓'; position: absolute; left: 5px; top: 5px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(45,143,85,.92); color: white; font-weight: 800; font-size: 13px; pointer-events: none; }
+    .review-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.94); display: none; align-items: center; justify-content: center; padding: 18px; }
+    .review-modal.open { display: flex; }
+    .review-card { width: min(980px, 96vw); height: min(900px, 94vh); display: grid; grid-template-rows: auto minmax(0,1fr) auto auto; gap: 10px; background: #171717; border: 1px solid #444; border-radius: 12px; padding: 12px; }
+    .review-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .review-top strong { font-size: 15px; }
+    .review-top button { width: auto; min-width: 90px; }
+    .review-image-wrap { min-height: 0; display: grid; place-items: center; background: #050505; border-radius: 8px; overflow: hidden; border: 4px solid #444; }
+    .review-image-wrap[data-label="headband"] { border-color: #98ff00; }
+    .review-image-wrap[data-label="no_headband"] { border-color: #935cff; }
+    .review-image-wrap[data-label="unsure"] { border-color: #ff2d79; }
+    #reviewImage { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; image-rendering: auto; }
+    .review-meta { font-size: 12px; color: #bbb; overflow-wrap: anywhere; }
+    .review-actions { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 7px; }
+    .review-actions button { padding: 9px 6px; }
+    .review-actions .headband-btn { background: #2d8f55; }
+    .review-actions .nohead-btn { background: #5d3cc7; }
+    .review-actions .unsure-btn { background: #a62d5f; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } .review-actions { grid-template-columns: repeat(3,1fr); } }
   </style>
 </head>
 <body>
   <header>
     <h1>Headband Dataset Builder</h1>
-    <p>Load a local video, choose COCO person detection or MoveNet skeleton detection, crop head regions, relabel crops, and download a Roboflow-ready ZIP.</p>
+    <p>Load a local video, choose MoveNet, COCO, or the Hugging Face Fashionpedia headband detector, auto-export crops, review every image, and download a Roboflow-ready ZIP.</p>
   </header>
 
   <main>
     <section class="panel">
       <div class="video-wrap">
-        <video id="video" controls muted playsinline></video>
+        <video id="video" controls playsinline></video>
         <canvas id="overlay"></canvas>
       </div>
 
@@ -92,6 +111,7 @@
           <select id="detectorSelect">
             <option value="skeleton">Skeleton pose detection - MoveNet MultiPose</option>
             <option value="coco">Person detection - COCO-SSD boxes</option>
+            <option value="hf">Hugging Face - Fashionpedia headband detector</option>
           </select>
         </div>
 
@@ -146,6 +166,16 @@
         </div>
 
         <div>
+          <label for="hfThreshold">HF headband confidence threshold</label>
+          <input id="hfThreshold" type="number" value="0.25" min="0.01" max="0.95" step="0.05" />
+        </div>
+
+        <div>
+          <label for="hfNmsThreshold">HF NMS overlap threshold</label>
+          <input id="hfNmsThreshold" type="number" value="0.45" min="0.10" max="0.90" step="0.05" />
+        </div>
+
+        <div>
           <label for="cropScale">Crop padding scale</label>
           <input id="cropScale" type="number" value="1.8" min="1.0" max="4.0" step="0.1" />
         </div>
@@ -153,6 +183,16 @@
         <div>
           <label for="outputSize">Output image size</label>
           <input id="outputSize" type="number" value="224" min="96" max="512" step="32" />
+        </div>
+
+        <div>
+          <label for="soundToggle">Preview sound</label>
+          <button id="soundToggle" class="secondary" type="button">Sound: On</button>
+        </div>
+
+        <div>
+          <label for="volumeSlider">Preview volume</label>
+          <input id="volumeSlider" type="range" min="0" max="1" value="1" step="0.05" />
         </div>
 
         <button id="loadModelBtn">Load selected model</button>
@@ -171,7 +211,7 @@
       </div>
 
       <div class="note">
-        ZIP output uses only top-level class folders: <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b>. Crop method and detector type are stored in the filename and manifest, not as folders, so Roboflow will not create accidental classes.
+        ZIP output uses only top-level class folders: <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b>. Hugging Face mode uses only Fashionpedia class 15 (<b>headband, head covering, hair accessory</b>); hat, scarf, and hood classes are excluded. Use Review all before downloading to catch false positives or bad labels.
       </div>
     </section>
 
@@ -194,15 +234,43 @@
         <button id="selectAllBtn" class="secondary">Select all</button>
         <button id="selectNoneBtn" class="secondary">Select none</button>
       </div>
-      <p style="font-size:12px; margin-top:8px;">Hotkeys: <b>1</b> = headband, <b>2</b> = no_headband, <b>3</b> = unsure, <b>Delete</b> = delete selected. Click a crop label button to cycle its label.</p>
+      <div class="inline-row" style="margin-top:8px;">
+        <button id="reviewAllBtn" class="success">Review all</button>
+        <button id="reviewUnreviewedBtn" class="secondary">Next unreviewed</button>
+      </div>
+      <div id="reviewSummary" class="review-summary">Reviewed 0 / 0</div>
+      <p style="font-size:12px; margin-top:8px;">Grid hotkeys: <b>1</b> = headband, <b>2</b> = no_headband, <b>3</b> = unsure, <b>Delete</b> = delete selected. Review mode: <b>1/2/3</b> relabel + advance, <b>←/→</b> navigate, <b>Delete</b> removes, <b>Esc</b> closes.</p>
       <div id="previewGrid" class="preview-grid"></div>
     </aside>
   </main>
+
+  <div id="reviewModal" class="review-modal" aria-hidden="true">
+    <div class="review-card">
+      <div class="review-top">
+        <strong id="reviewCounter">0 / 0</strong>
+        <button id="reviewCloseBtn" class="secondary">Close</button>
+      </div>
+      <div id="reviewImageWrap" class="review-image-wrap" data-label="unsure">
+        <img id="reviewImage" alt="crop under review" />
+      </div>
+      <div id="reviewMeta" class="review-meta"></div>
+      <div class="review-actions">
+        <button id="reviewPrevBtn" class="secondary">← Previous</button>
+        <button id="reviewHeadbandBtn" class="headband-btn">1 Headband</button>
+        <button id="reviewNoHeadbandBtn" class="nohead-btn">2 No headband</button>
+        <button id="reviewUnsureBtn" class="unsure-btn">3 Unsure</button>
+        <button id="reviewDeleteBtn" class="danger">Delete</button>
+        <button id="reviewMarkBtn" class="success">Mark checked</button>
+        <button id="reviewNextBtn" class="secondary">Next →</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 
   <script>
     const video = document.getElementById('video');
@@ -225,8 +293,12 @@
     const kpThreshold = document.getElementById('kpThreshold');
     const poseThreshold = document.getElementById('poseThreshold');
     const personThreshold = document.getElementById('personThreshold');
+    const hfThreshold = document.getElementById('hfThreshold');
+    const hfNmsThreshold = document.getElementById('hfNmsThreshold');
     const cropScale = document.getElementById('cropScale');
     const outputSize = document.getElementById('outputSize');
+    const soundToggle = document.getElementById('soundToggle');
+    const volumeSlider = document.getElementById('volumeSlider');
     const loadModelBtn = document.getElementById('loadModelBtn');
     const scanBtn = document.getElementById('scanBtn');
     const autoBtn = document.getElementById('autoBtn');
@@ -241,15 +313,45 @@
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const selectNoneBtn = document.getElementById('selectNoneBtn');
+    const reviewAllBtn = document.getElementById('reviewAllBtn');
+    const reviewUnreviewedBtn = document.getElementById('reviewUnreviewedBtn');
+    const reviewSummary = document.getElementById('reviewSummary');
+    const reviewModal = document.getElementById('reviewModal');
+    const reviewCounter = document.getElementById('reviewCounter');
+    const reviewCloseBtn = document.getElementById('reviewCloseBtn');
+    const reviewImageWrap = document.getElementById('reviewImageWrap');
+    const reviewImage = document.getElementById('reviewImage');
+    const reviewMeta = document.getElementById('reviewMeta');
+    const reviewPrevBtn = document.getElementById('reviewPrevBtn');
+    const reviewHeadbandBtn = document.getElementById('reviewHeadbandBtn');
+    const reviewNoHeadbandBtn = document.getElementById('reviewNoHeadbandBtn');
+    const reviewUnsureBtn = document.getElementById('reviewUnsureBtn');
+    const reviewDeleteBtn = document.getElementById('reviewDeleteBtn');
+    const reviewMarkBtn = document.getElementById('reviewMarkBtn');
+    const reviewNextBtn = document.getElementById('reviewNextBtn');
 
     let skeletonDetector = null;
     let personDetector = null;
+    let hfSession = null;
+    let hfInputName = null;
+    let hfOutputName = null;
     let loadedDetectorType = null;
     let savedCrops = [];
+    let reviewIndex = 0;
     let scannedFrames = 0;
     let autoRunning = false;
     let lastProcessedFrame = -1;
     let isScrubbing = false;
+
+    const HF_MODEL_URL = 'https://huggingface.co/louisJLN/yolo8-fashionpedia/resolve/2341a0b6fccba6c2349a429d243d15956b5973ee/results/yolov8n-fashionpedia-1.onnx';
+    const HF_LOCAL_MODEL_URL = './model/yolov8n-fashionpedia-1.onnx';
+    const HF_MODEL_SIZE = 640;
+    const HF_HEADBAND_ID = 15;
+    const HF_HEADBAND_LABEL = 'headband, head covering, hair accessory';
+    const hfCanvas = document.createElement('canvas');
+    hfCanvas.width = HF_MODEL_SIZE;
+    hfCanvas.height = HF_MODEL_SIZE;
+    const hfCtx = hfCanvas.getContext('2d', { willReadFrequently: true });
 
     const skeletonEdges = [
       ['nose','left_eye'], ['nose','right_eye'], ['left_eye','left_ear'], ['right_eye','right_ear'],
@@ -394,6 +496,113 @@
       return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
     }
 
+    function makeHfCropRect(detection) {
+      const r = detection.rect;
+      const scale = Number(cropScale.value);
+      const base = Math.max(r.w, r.h * 2.0, 32);
+      let cropW = base * scale;
+      let cropH = cropW;
+      let centerX = r.x + r.w / 2;
+      let centerY = r.y + r.h / 2;
+      if (cropMode.value === 'head_shoulders') {
+        cropW *= 1.35;
+        cropH = cropW * 1.15;
+        centerY += cropH * 0.18;
+      }
+      return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
+    }
+
+    function rectIou(a, b) {
+      const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+      const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+      const iw = Math.max(0, x2 - x1), ih = Math.max(0, y2 - y1);
+      const inter = iw * ih;
+      const union = a.w * a.h + b.w * b.h - inter;
+      return union > 0 ? inter / union : 0;
+    }
+
+    function hfNms(detections, threshold) {
+      const sorted = [...detections].sort((a, b) => b.score - a.score);
+      const keep = [];
+      while (sorted.length) {
+        const best = sorted.shift();
+        keep.push(best);
+        for (let i = sorted.length - 1; i >= 0; i--) {
+          if (rectIou(sorted[i].rect, best.rect) > threshold) sorted.splice(i, 1);
+        }
+      }
+      return keep;
+    }
+
+    function preprocessForHf() {
+      hfCtx.drawImage(video, 0, 0, HF_MODEL_SIZE, HF_MODEL_SIZE);
+      const rgba = hfCtx.getImageData(0, 0, HF_MODEL_SIZE, HF_MODEL_SIZE).data;
+      const plane = HF_MODEL_SIZE * HF_MODEL_SIZE;
+      const data = new Float32Array(plane * 3);
+      for (let i = 0, p = 0; i < rgba.length; i += 4, p++) {
+        data[p] = rgba[i] / 255;
+        data[plane + p] = rgba[i + 1] / 255;
+        data[plane * 2 + p] = rgba[i + 2] / 255;
+      }
+      return new ort.Tensor('float32', data, [1, 3, HF_MODEL_SIZE, HF_MODEL_SIZE]);
+    }
+
+    function decodeHfOutput(output) {
+      const dims = output.dims;
+      if (!dims || dims.length !== 3) throw new Error('Unexpected Hugging Face YOLO output shape: ' + JSON.stringify(dims));
+      const data = output.data;
+      let attrs, count, get;
+      if (dims[1] < dims[2]) {
+        attrs = dims[1]; count = dims[2];
+        get = (box, attr) => data[attr * count + box];
+      } else {
+        count = dims[1]; attrs = dims[2];
+        get = (box, attr) => data[box * attrs + attr];
+      }
+      const classCount = attrs - 4;
+      if (HF_HEADBAND_ID >= classCount) throw new Error(`HF model has ${classCount} classes; expected headband class ${HF_HEADBAND_ID}.`);
+      const threshold = Number(hfThreshold.value);
+      const candidates = [];
+      for (let i = 0; i < count; i++) {
+        const score = get(i, 4 + HF_HEADBAND_ID);
+        if (score < threshold) continue;
+        const cx = get(i, 0), cy = get(i, 1), w = get(i, 2), h = get(i, 3);
+        const rect = clampRect(
+          (cx - w / 2) * video.videoWidth / HF_MODEL_SIZE,
+          (cy - h / 2) * video.videoHeight / HF_MODEL_SIZE,
+          w * video.videoWidth / HF_MODEL_SIZE,
+          h * video.videoHeight / HF_MODEL_SIZE,
+          video.videoWidth,
+          video.videoHeight
+        );
+        candidates.push({ rect, score, classId: HF_HEADBAND_ID, classLabel: HF_HEADBAND_LABEL });
+      }
+      return hfNms(candidates, Number(hfNmsThreshold.value)).slice(0, 50);
+    }
+
+    async function runHfDetector() {
+      if (!hfSession) return [];
+      const input = preprocessForHf();
+      const results = await hfSession.run({ [hfInputName]: input });
+      return decodeHfOutput(results[hfOutputName]);
+    }
+
+    async function loadHfModel() {
+      ort.env.wasm.numThreads = 1;
+      ort.env.wasm.simd = true;
+      ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
+      if (!hfSession) {
+        try {
+          hfSession = await ort.InferenceSession.create(HF_MODEL_URL, { executionProviders: ['wasm'] });
+        } catch (remoteErr) {
+          console.warn('Remote HF model failed; trying local model path.', remoteErr);
+          hfSession = await ort.InferenceSession.create(HF_LOCAL_MODEL_URL, { executionProviders: ['wasm'] });
+        }
+      }
+      hfInputName = hfSession.inputNames[0];
+      hfOutputName = hfSession.outputNames[0];
+    }
+
     function drawOverlay(detections) {
       ctx.clearRect(0, 0, overlay.width, overlay.height);
       if (!video.videoWidth) return;
@@ -444,6 +653,20 @@
           ctx.lineWidth = 2;
           ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
         });
+      } else if (loadedDetectorType === 'hf') {
+        detections.forEach((det, index) => {
+          const r = det.rect;
+          ctx.strokeStyle = '#ff4fd8';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(r.x * scaleX + offsetX, r.y * scaleY + offsetY, r.w * scaleX, r.h * scaleY);
+          ctx.fillStyle = '#ff4fd8';
+          ctx.font = '14px Arial';
+          ctx.fillText(`HF headband ${index + 1} ${Math.round(det.score * 100)}%`, r.x * scaleX + offsetX + 4, r.y * scaleY + offsetY - 6);
+          const rect = makeHfCropRect(det);
+          ctx.strokeStyle = 'yellow';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
+        });
       }
     }
 
@@ -476,11 +699,17 @@
         const predictions = await personDetector.detect(video);
         return predictions.filter(p => p.class === 'person' && p.score >= Number(personThreshold.value));
       }
+      if (loadedDetectorType === 'hf') {
+        return await runHfDetector();
+      }
       return [];
     }
 
     function rectForDetection(det) {
-      return loadedDetectorType === 'skeleton' ? makeSkeletonCropRect(det) : makeCocoCropRect(det);
+      if (loadedDetectorType === 'skeleton') return makeSkeletonCropRect(det);
+      if (loadedDetectorType === 'coco') return makeCocoCropRect(det);
+      if (loadedDetectorType === 'hf') return makeHfCropRect(det);
+      return null;
     }
 
     async function scanFrame(save = true) {
@@ -503,18 +732,24 @@
         const timestamp = Math.round(video.currentTime * 1000);
         const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const name = `${label}_${detectorType}_${mode}_t${timestamp}_p${i}_${id}.jpg`;
-        savedCrops.push({ label, mode, detectorType, name, blob, dataUrl, selected: false });
+        const det = detections[i];
+        savedCrops.push({
+          label, mode, detectorType, name, blob, dataUrl, selected: false, reviewed: false,
+          detectorScore: typeof det?.score === 'number' ? det.score : null,
+          detectorClass: det?.classLabel || det?.class || null,
+          timestampMs: timestamp
+        });
         addPreview(savedCrops.length - 1);
       }
       refreshPreview();
-      setStatus(`Scanned frame: ${detections.length} detections, ${savedCrops.length} total crops saved.`);
+      setStatus(`Scanned frame: ${detections.length} ${loadedDetectorType === 'hf' ? 'HF headband detections' : 'detections'}, ${savedCrops.length} total crops saved.`);
       return detections;
     }
 
     function addPreview(index) {
       const crop = savedCrops[index];
       const item = document.createElement('div');
-      item.className = 'thumb';
+      item.className = `thumb${crop.reviewed ? ' reviewed' : ''}`;
       item.dataset.index = index;
       item.dataset.label = crop.label;
       item.innerHTML = `
@@ -528,7 +763,7 @@
             <option value="unsure">unsure</option>
           </select>
         </div>
-        <div class="meta" title="${crop.name}">${crop.name}</div>`;
+        <div class="meta" title="${crop.name}">${crop.detectorScore != null ? Math.round(crop.detectorScore * 100) + '% · ' : ''}${crop.name}</div>`;
       item.querySelector('.crop-label').value = crop.label;
       item.addEventListener('click', (e) => {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
@@ -583,7 +818,7 @@
       previewGrid.innerHTML = '';
       savedCrops.forEach((crop, index) => {
         const item = document.createElement('div');
-        item.className = `thumb${crop.selected ? ' selected' : ''}`;
+        item.className = `thumb${crop.selected ? ' selected' : ''}${crop.reviewed ? ' reviewed' : ''}`;
         item.dataset.index = index;
         item.dataset.label = crop.label;
         item.innerHTML = `
@@ -597,7 +832,7 @@
               <option value="unsure">unsure</option>
             </select>
           </div>
-          <div class="meta" title="${crop.name}">${crop.name}</div>`;
+          <div class="meta" title="${crop.name}">${crop.detectorScore != null ? Math.round(crop.detectorScore * 100) + '% · ' : ''}${crop.name}</div>`;
         item.querySelector('.crop-label').value = crop.label;
         item.addEventListener('click', (e) => {
           if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
@@ -621,6 +856,84 @@
       });
       cropCount.textContent = savedCrops.length;
       downloadBtn.disabled = savedCrops.length === 0;
+      const reviewed = savedCrops.filter(c => c.reviewed).length;
+      reviewSummary.textContent = `Reviewed ${reviewed} / ${savedCrops.length}`;
+      reviewAllBtn.disabled = savedCrops.length === 0;
+      reviewUnreviewedBtn.disabled = savedCrops.length === 0 || reviewed === savedCrops.length;
+      if (reviewModal.classList.contains('open')) renderReview();
+    }
+
+    function renderReview() {
+      if (!savedCrops.length) {
+        closeReview();
+        return;
+      }
+      reviewIndex = Math.max(0, Math.min(reviewIndex, savedCrops.length - 1));
+      const crop = savedCrops[reviewIndex];
+      reviewImage.src = crop.dataUrl;
+      reviewImageWrap.dataset.label = crop.label;
+      reviewCounter.textContent = `${reviewIndex + 1} / ${savedCrops.length} · ${crop.reviewed ? 'checked' : 'not checked'}`;
+      const detectorText = crop.detectorScore != null ? ` · detector ${Math.round(crop.detectorScore * 100)}%` : '';
+      reviewMeta.textContent = `${crop.label}${detectorText} · ${crop.detectorType} · ${crop.name}`;
+      reviewPrevBtn.disabled = reviewIndex <= 0;
+      reviewNextBtn.disabled = reviewIndex >= savedCrops.length - 1;
+      reviewMarkBtn.textContent = crop.reviewed ? 'Checked ✓' : 'Mark checked';
+    }
+
+    function openReview(index = 0) {
+      if (!savedCrops.length) return;
+      reviewIndex = Math.max(0, Math.min(index, savedCrops.length - 1));
+      reviewModal.classList.add('open');
+      reviewModal.setAttribute('aria-hidden', 'false');
+      renderReview();
+    }
+
+    function closeReview() {
+      reviewModal.classList.remove('open');
+      reviewModal.setAttribute('aria-hidden', 'true');
+      refreshPreview();
+    }
+
+    function markCurrentReviewed() {
+      const crop = savedCrops[reviewIndex];
+      if (crop) crop.reviewed = true;
+    }
+
+    function reviewMove(delta, mark = true) {
+      if (!savedCrops.length) return;
+      if (mark) markCurrentReviewed();
+      reviewIndex = Math.max(0, Math.min(savedCrops.length - 1, reviewIndex + delta));
+      renderReview();
+      refreshReviewSummaryOnly();
+    }
+
+    function refreshReviewSummaryOnly() {
+      const reviewed = savedCrops.filter(c => c.reviewed).length;
+      reviewSummary.textContent = `Reviewed ${reviewed} / ${savedCrops.length}`;
+      reviewUnreviewedBtn.disabled = savedCrops.length === 0 || reviewed === savedCrops.length;
+    }
+
+    function reviewSetLabel(label, advance = true) {
+      if (!savedCrops[reviewIndex]) return;
+      relabelCrop(reviewIndex, label);
+      savedCrops[reviewIndex].reviewed = true;
+      if (advance && reviewIndex < savedCrops.length - 1) reviewIndex += 1;
+      renderReview();
+      refreshReviewSummaryOnly();
+    }
+
+    function reviewDeleteCurrent() {
+      if (!savedCrops.length) return;
+      savedCrops.splice(reviewIndex, 1);
+      if (reviewIndex >= savedCrops.length) reviewIndex = Math.max(0, savedCrops.length - 1);
+      refreshPreview();
+      if (savedCrops.length) renderReview();
+    }
+
+    function openNextUnreviewed() {
+      const idx = savedCrops.findIndex(c => !c.reviewed);
+      if (idx >= 0) openReview(idx);
+      else setStatus('All saved crops have been reviewed.');
     }
 
     function applyLabelToSelected(label) {
@@ -653,6 +966,19 @@
       }
       requestAnimationFrame(autoLoop);
     }
+
+    soundToggle.addEventListener('click', () => {
+      video.muted = !video.muted;
+      soundToggle.textContent = video.muted ? 'Sound: Off' : 'Sound: On';
+    });
+
+    volumeSlider.addEventListener('input', () => {
+      video.volume = Number(volumeSlider.value);
+      if (video.volume > 0 && video.muted) {
+        video.muted = false;
+        soundToggle.textContent = 'Sound: On';
+      }
+    });
 
     videoFile.addEventListener('change', () => {
       const file = videoFile.files[0];
@@ -719,25 +1045,32 @@
       const type = detectorSelect.value;
       loadModelBtn.disabled = true;
       try {
-        await tf.setBackend('webgl');
-        await tf.ready();
-        if (type === 'skeleton') {
-          setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
-          if (!skeletonDetector) {
-            skeletonDetector = await poseDetection.createDetector(
-              poseDetection.SupportedModels.MoveNet,
-              { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
-            );
-          }
-          loadedDetectorType = 'skeleton';
-          setStatus('Skeleton model loaded. Scan a paused frame or start auto export.');
+        if (type === 'hf') {
+          setStatus('Loading Hugging Face Fashionpedia YOLO headband detector...');
+          await loadHfModel();
+          loadedDetectorType = 'hf';
+          setStatus('Hugging Face headband detector loaded. It exports only class 15; hats, scarves, and hoods are excluded.');
         } else {
-          setStatus('Loading COCO-SSD person detector...');
-          if (!personDetector) {
-            personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
+          await tf.setBackend('webgl');
+          await tf.ready();
+          if (type === 'skeleton') {
+            setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
+            if (!skeletonDetector) {
+              skeletonDetector = await poseDetection.createDetector(
+                poseDetection.SupportedModels.MoveNet,
+                { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
+              );
+            }
+            loadedDetectorType = 'skeleton';
+            setStatus('Skeleton model loaded. Scan a paused frame or start auto export.');
+          } else {
+            setStatus('Loading COCO-SSD person detector...');
+            if (!personDetector) {
+              personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
+            }
+            loadedDetectorType = 'coco';
+            setStatus('COCO person detector loaded. Scan a paused frame or start auto export.');
           }
-          loadedDetectorType = 'coco';
-          setStatus('COCO person detector loaded. Scan a paused frame or start auto export.');
         }
         loadModelBtn.textContent = 'Model loaded';
         updateActionButtons();
@@ -755,7 +1088,7 @@
       if (autoRunning) {
         autoBtn.textContent = 'Stop auto export';
         video.playbackRate = Number(autoSpeed.value);
-        setStatus(`Auto export running at ${video.playbackRate}x. Lower speed if detections miss people.`);
+        setStatus(`Auto export running at ${video.playbackRate}x. ${loadedDetectorType === 'hf' ? 'HF inference is heavier; use 0.25x or 0.5x if frames are skipped.' : 'Lower speed if detections miss people.'}`);
         if (video.paused) await video.play();
         autoLoop();
       } else {
@@ -779,9 +1112,30 @@
     deleteSelectedBtn.addEventListener('click', deleteSelected);
     selectAllBtn.addEventListener('click', () => { savedCrops.forEach(c => c.selected = true); refreshPreview(); });
     selectNoneBtn.addEventListener('click', () => { savedCrops.forEach(c => c.selected = false); refreshPreview(); });
+    reviewAllBtn.addEventListener('click', () => openReview(0));
+    reviewUnreviewedBtn.addEventListener('click', openNextUnreviewed);
+    reviewCloseBtn.addEventListener('click', closeReview);
+    reviewPrevBtn.addEventListener('click', () => reviewMove(-1));
+    reviewNextBtn.addEventListener('click', () => reviewMove(1));
+    reviewHeadbandBtn.addEventListener('click', () => reviewSetLabel('headband'));
+    reviewNoHeadbandBtn.addEventListener('click', () => reviewSetLabel('no_headband'));
+    reviewUnsureBtn.addEventListener('click', () => reviewSetLabel('unsure'));
+    reviewDeleteBtn.addEventListener('click', reviewDeleteCurrent);
+    reviewMarkBtn.addEventListener('click', () => { markCurrentReviewed(); renderReview(); refreshReviewSummaryOnly(); });
+    reviewModal.addEventListener('click', (e) => { if (e.target === reviewModal) closeReview(); });
 
     document.addEventListener('keydown', (e) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+      if (reviewModal.classList.contains('open')) {
+        if (e.key === '1') reviewSetLabel('headband');
+        else if (e.key === '2') reviewSetLabel('no_headband');
+        else if (e.key === '3') reviewSetLabel('unsure');
+        else if (e.key === 'ArrowLeft') reviewMove(-1);
+        else if (e.key === 'ArrowRight' || e.key === ' ') reviewMove(1);
+        else if (e.key === 'Delete' || e.key === 'Backspace') reviewDeleteCurrent();
+        else if (e.key === 'Escape') closeReview();
+        return;
+      }
       if (e.key === '1') applyLabelToSelected('headband');
       if (e.key === '2') applyLabelToSelected('no_headband');
       if (e.key === '3') applyLabelToSelected('unsure');
@@ -790,6 +1144,8 @@
 
     downloadBtn.addEventListener('click', async () => {
       if (!savedCrops.length) return;
+      const unreviewed = savedCrops.filter(c => !c.reviewed).length;
+      if (unreviewed > 0 && !window.confirm(`${unreviewed} crop${unreviewed === 1 ? '' : 's'} have not been checked in Review mode. Download anyway?`)) return;
       setStatus('Building ZIP...');
       const zip = new JSZip();
       for (const crop of savedCrops) {
@@ -799,6 +1155,10 @@
         label: c.label,
         mode: c.mode,
         detector: c.detectorType,
+        detectorScore: c.detectorScore,
+        detectorClass: c.detectorClass,
+        timestampMs: c.timestampMs,
+        reviewed: Boolean(c.reviewed),
         filename: `${c.label}/${c.name}`
       }));
       zip.file('manifest.json', JSON.stringify(manifest, null, 2));
@@ -811,6 +1171,8 @@
       a.remove();
       setStatus('ZIP downloaded. Upload the ZIP to Roboflow as a classification dataset.');
     });
+
+    refreshPreview();
   </script>
 </body>
 </html>

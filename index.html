@@ -30,7 +30,7 @@
     button.success { background: #2d8f55; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
     .status { margin-top: 10px; padding: 9px 10px; border-radius: 8px; background: #101010; border: 1px solid #333; font-size: 13px; color: #ccc; min-height: 36px; }
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; margin-top: 10px; }
     .stat { background: #101010; border: 1px solid #333; border-radius: 8px; padding: 9px; text-align: center; }
     .stat strong { display: block; font-size: 18px; }
     .stat span { color: #aaa; font-size: 12px; }
@@ -53,38 +53,47 @@
     .thumb select { font-size: 11px; padding: 3px; border-radius: 5px; border: 1px solid #444; background: rgba(0,0,0,0.75); }
     .note { padding: 10px; background: #171717; border-left: 3px solid #2d6cdf; margin-top: 10px; font-size: 13px; color: #bbb; line-height: 1.35; }
     .inline-row { display: flex; gap: 8px; align-items: center; }
-    .review-summary { margin-top: 8px; font-size: 12px; color: #bbb; }
-    .thumb.reviewed::after { content: '✓'; position: absolute; left: 5px; top: 5px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(45,143,85,.92); color: white; font-weight: 800; font-size: 13px; pointer-events: none; }
-    .review-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.94); display: none; align-items: center; justify-content: center; padding: 18px; }
-    .review-modal.open { display: flex; }
-    .review-card { width: min(980px, 96vw); height: min(900px, 94vh); display: grid; grid-template-rows: auto minmax(0,1fr) auto auto; gap: 10px; background: #171717; border: 1px solid #444; border-radius: 12px; padding: 12px; }
-    .review-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
-    .review-top strong { font-size: 15px; }
-    .review-top button { width: auto; min-width: 90px; }
-    .review-image-wrap { min-height: 0; display: grid; place-items: center; background: #050505; border-radius: 8px; overflow: hidden; border: 4px solid #444; }
-    .review-image-wrap[data-label="headband"] { border-color: #98ff00; }
-    .review-image-wrap[data-label="no_headband"] { border-color: #935cff; }
-    .review-image-wrap[data-label="unsure"] { border-color: #ff2d79; }
-    #reviewImage { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; image-rendering: auto; }
-    .review-meta { font-size: 12px; color: #bbb; overflow-wrap: anywhere; }
-    .review-actions { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 7px; }
-    .review-actions button { padding: 9px 6px; }
-    .review-actions .headband-btn { background: #2d8f55; }
-    .review-actions .nohead-btn { background: #5d3cc7; }
-    .review-actions .unsure-btn { background: #a62d5f; }
-    @media (max-width: 900px) { main { grid-template-columns: 1fr; } .review-actions { grid-template-columns: repeat(3,1fr); } }
+    .teacher-box { grid-column: 1 / -1; padding: 11px; border: 1px solid #3d526f; border-radius: 9px; background: #151b24; }
+    .teacher-box h3 { margin: 0 0 8px; font-size: 14px; }
+    .teacher-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .teacher-grid .full { grid-column: 1 / -1; }
+    .checkline { display: flex; align-items: center; gap: 7px; padding: 8px; background: #10151c; border: 1px solid #33445b; border-radius: 8px; font-size: 13px; }
+    .checkline input { width: auto; margin: 0; }
+    .teacher-meta { padding: 4px 5px 6px; font-size: 10px; line-height: 1.3; color: #9fc3f3; min-height: 31px; }
+    .thumb.hard { outline: 2px solid #ff9d2d; outline-offset: -2px; }
+    .thumb.teacher-error { outline: 2px solid #ff4b4b; outline-offset: -2px; }
+    .preview-filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .review-panel { grid-column: 1 / -1; }
+    .review-toolbar { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+    .review-stage { display: grid; grid-template-columns: minmax(320px, 1.55fr) minmax(260px, 0.75fr); gap: 14px; margin-top: 12px; align-items: stretch; }
+    .review-photo-frame { min-height: 420px; max-height: 72vh; background: #080808; border: 4px solid #444; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .review-photo-frame[data-label="headband"] { border-color: #98ff00; }
+    .review-photo-frame[data-label="no_headband"] { border-color: #935cff; }
+    .review-photo-frame[data-label="unsure"] { border-color: #ff2d79; }
+    .review-photo-frame img { display: block; max-width: 100%; max-height: 70vh; width: auto; height: auto; object-fit: contain; }
+    .review-empty { color: #777; font-size: 16px; padding: 20px; text-align: center; }
+    .review-side { display: flex; flex-direction: column; gap: 9px; }
+    .review-progress { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .review-label { padding: 8px 10px; border-radius: 8px; background: #101010; border: 1px solid #333; font-size: 14px; }
+    .review-meta { padding: 10px; min-height: 150px; border-radius: 8px; background: #101010; border: 1px solid #333; color: #bbb; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+    .review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .review-actions .wide { grid-column: 1 / -1; }
+    .review-key { display: inline-block; min-width: 26px; padding: 2px 6px; margin-right: 4px; border-radius: 5px; background: #333; border: 1px solid #555; color: #fff; text-align: center; font-weight: 700; }
+    .review-active { border-color: #2d8f55 !important; box-shadow: 0 0 0 1px #2d8f55 inset; }
+    @media (max-width: 1100px) { .review-toolbar { grid-template-columns: repeat(2, minmax(150px, 1fr)); } }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } .review-stage { grid-template-columns: 1fr; } .review-photo-frame { min-height: 320px; } }
   </style>
 </head>
 <body>
   <header>
     <h1>Headband Dataset Builder</h1>
-    <p>Load a local video, choose MoveNet, COCO, or the Hugging Face Fashionpedia headband detector, auto-export crops, review every image, and download a Roboflow-ready ZIP.</p>
+    <p>Load local video, extract head crops, optionally use the Roboflow model as a teacher, review hard examples, and download a training-ready ZIP.</p>
   </header>
 
   <main>
     <section class="panel">
       <div class="video-wrap">
-        <video id="video" controls playsinline></video>
+        <video id="video" controls muted playsinline></video>
         <canvas id="overlay"></canvas>
       </div>
 
@@ -111,7 +120,6 @@
           <select id="detectorSelect">
             <option value="skeleton">Skeleton pose detection - MoveNet MultiPose</option>
             <option value="coco">Person detection - COCO-SSD boxes</option>
-            <option value="hf">Hugging Face - Fashionpedia headband detector</option>
           </select>
         </div>
 
@@ -166,16 +174,6 @@
         </div>
 
         <div>
-          <label for="hfThreshold">HF headband confidence threshold</label>
-          <input id="hfThreshold" type="number" value="0.25" min="0.01" max="0.95" step="0.05" />
-        </div>
-
-        <div>
-          <label for="hfNmsThreshold">HF NMS overlap threshold</label>
-          <input id="hfNmsThreshold" type="number" value="0.45" min="0.10" max="0.90" step="0.05" />
-        </div>
-
-        <div>
           <label for="cropScale">Crop padding scale</label>
           <input id="cropScale" type="number" value="1.8" min="1.0" max="4.0" step="0.1" />
         </div>
@@ -185,14 +183,37 @@
           <input id="outputSize" type="number" value="224" min="96" max="512" step="32" />
         </div>
 
-        <div>
-          <label for="soundToggle">Preview sound</label>
-          <button id="soundToggle" class="secondary" type="button">Sound: On</button>
-        </div>
-
-        <div>
-          <label for="volumeSlider">Preview volume</label>
-          <input id="volumeSlider" type="range" min="0" max="1" value="1" step="0.05" />
+        <div class="teacher-box">
+          <h3>Roboflow teacher-assisted capture</h3>
+          <div class="teacher-grid">
+            <div class="full">
+              <label for="teacherProxyUrl">Cloudflare Worker proxy URL</label>
+              <input id="teacherProxyUrl" type="text" placeholder="https://your-worker.workers.dev" />
+            </div>
+            <button id="saveTeacherProxyBtn" class="secondary">Save proxy URL</button>
+            <button id="testTeacherProxyBtn" class="secondary">Test on a saved crop</button>
+            <label class="checkline"><input id="enableTeacher" type="checkbox" /> Classify every new crop with Roboflow</label>
+            <label class="checkline"><input id="autoTeacherLabel" type="checkbox" checked /> Auto-label teacher results</label>
+            <div>
+              <label for="teacherAutoThreshold">Auto-label minimum confidence</label>
+              <input id="teacherAutoThreshold" type="number" value="0.95" min="0.50" max="0.999" step="0.01" />
+            </div>
+            <div>
+              <label for="teacherConcurrency">Concurrent teacher requests</label>
+              <input id="teacherConcurrency" type="number" value="4" min="1" max="8" step="1" />
+            </div>
+            <div>
+              <label for="hardLow">Hard-example HB score low</label>
+              <input id="hardLow" type="number" value="0.30" min="0" max="1" step="0.05" />
+            </div>
+            <div>
+              <label for="hardHigh">Hard-example HB score high</label>
+              <input id="hardHigh" type="number" value="0.70" min="0" max="1" step="0.05" />
+            </div>
+            <button id="classifyUnscoredBtn" class="success">Classify all unscored crops</button>
+            <button id="selectHardBtn" class="secondary">Select hard examples</button>
+          </div>
+          <div id="teacherStatus" class="status">Teacher: off. The API key stays in your Cloudflare Worker, not in this page.</div>
         </div>
 
         <button id="loadModelBtn">Load selected model</button>
@@ -208,10 +229,13 @@
         <div class="stat"><strong id="peopleCount">0</strong><span>detections in frame</span></div>
         <div class="stat"><strong id="cropCount">0</strong><span>saved crops</span></div>
         <div class="stat"><strong id="frameCount">0</strong><span>frames scanned</span></div>
+        <div class="stat"><strong id="teacherCallCount">0</strong><span>teacher calls</span></div>
+        <div class="stat"><strong id="hardCount">0</strong><span>hard examples</span></div>
+        <div class="stat"><strong id="creditEstimate">0.0000</strong><span>est. credits @ 0.0625/1k</span></div>
       </div>
 
       <div class="note">
-        ZIP output uses only top-level class folders: <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b>. Hugging Face mode uses only Fashionpedia class 15 (<b>headband, head covering, hair accessory</b>); hat, scarf, and hood classes are excluded. Use Review all before downloading to catch false positives or bad labels.
+        ZIP output uses only top-level class folders: <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b>. Crop method and detector type are stored in the filename and manifest, not as folders, so Roboflow will not create accidental classes.
       </div>
     </section>
 
@@ -234,43 +258,115 @@
         <button id="selectAllBtn" class="secondary">Select all</button>
         <button id="selectNoneBtn" class="secondary">Select none</button>
       </div>
-      <div class="inline-row" style="margin-top:8px;">
-        <button id="reviewAllBtn" class="success">Review all</button>
-        <button id="reviewUnreviewedBtn" class="secondary">Next unreviewed</button>
+      <div class="preview-filter-row">
+        <div>
+          <label for="previewFilter">Show</label>
+          <select id="previewFilter">
+            <option value="all">All crops</option>
+            <option value="hard">Hard examples only</option>
+            <option value="unscored">Unscored / errors</option>
+            <option value="headband">headband</option>
+            <option value="no_headband">no_headband</option>
+            <option value="unsure">unsure</option>
+          </select>
+        </div>
+        <div>
+          <label for="previewSort">Sort</label>
+          <select id="previewSort">
+            <option value="newest">Newest first</option>
+            <option value="uncertain">Most uncertain first</option>
+            <option value="teacher_conf">Highest teacher confidence</option>
+          </select>
+        </div>
       </div>
-      <div id="reviewSummary" class="review-summary">Reviewed 0 / 0</div>
-      <p style="font-size:12px; margin-top:8px;">Grid hotkeys: <b>1</b> = headband, <b>2</b> = no_headband, <b>3</b> = unsure, <b>Delete</b> = delete selected. Review mode: <b>1/2/3</b> relabel + advance, <b>←/→</b> navigate, <b>Delete</b> removes, <b>Esc</b> closes.</p>
+      <p style="font-size:12px; margin-top:8px;">Hotkeys: <b>1</b> = headband, <b>2</b> = no_headband, <b>3</b> = unsure, <b>Delete</b> = delete selected. Orange outline = teacher-hard example. Manual relabeling always overrides the teacher label.</p>
       <div id="previewGrid" class="preview-grid"></div>
     </aside>
-  </main>
 
-  <div id="reviewModal" class="review-modal" aria-hidden="true">
-    <div class="review-card">
-      <div class="review-top">
-        <strong id="reviewCounter">0 / 0</strong>
-        <button id="reviewCloseBtn" class="secondary">Close</button>
+    <section id="reviewPanel" class="panel review-panel">
+      <h2 style="font-size:18px; margin:0 0 6px;">Keyboard Photo Review</h2>
+      <p>Review one crop at a time. Once review mode is active, label or delete the current crop and the tool automatically advances to the next matching crop.</p>
+
+      <div class="review-toolbar">
+        <div>
+          <label for="reviewLabelFilter">Final label filter</label>
+          <select id="reviewLabelFilter">
+            <option value="all">All labels</option>
+            <option value="unsure">unsure only</option>
+            <option value="headband">headband only</option>
+            <option value="no_headband">no_headband only</option>
+          </select>
+        </div>
+        <div>
+          <label for="reviewTeacherFilter">Teacher filter</label>
+          <select id="reviewTeacherFilter">
+            <option value="all">Any teacher state</option>
+            <option value="hard">Hard examples only</option>
+            <option value="scored">Teacher scored</option>
+            <option value="unscored">Unscored / queued / errors</option>
+            <option value="teacher_headband">Teacher says headband</option>
+            <option value="teacher_no_headband">Teacher says no_headband</option>
+            <option value="teacher_error">Teacher errors only</option>
+          </select>
+        </div>
+        <div>
+          <label for="reviewSourceFilter">Review / label source</label>
+          <select id="reviewSourceFilter">
+            <option value="all">Any source</option>
+            <option value="not_manual">Not manually reviewed</option>
+            <option value="manual">Manual reviews only</option>
+            <option value="teacher">Teacher auto-labels only</option>
+            <option value="teacher_review">Teacher sent to review</option>
+            <option value="default">Default labels only</option>
+          </select>
+        </div>
+        <div>
+          <label for="reviewSort">Sort review queue</label>
+          <select id="reviewSort">
+            <option value="uncertain">Most uncertain first</option>
+            <option value="oldest">Oldest saved first</option>
+            <option value="newest">Newest saved first</option>
+            <option value="low_conf">Lowest teacher confidence</option>
+            <option value="high_conf">Highest teacher confidence</option>
+            <option value="video_asc">Earliest video timestamp</option>
+            <option value="video_desc">Latest video timestamp</option>
+            <option value="hard_first">Hard examples first</option>
+          </select>
+        </div>
       </div>
-      <div id="reviewImageWrap" class="review-image-wrap" data-label="unsure">
-        <img id="reviewImage" alt="crop under review" />
+
+      <div class="review-stage">
+        <div id="reviewPhotoFrame" class="review-photo-frame" data-label="">
+          <div id="reviewEmpty" class="review-empty">No crops match the current filters.</div>
+          <img id="reviewImage" alt="Current crop for review" hidden />
+        </div>
+
+        <div class="review-side">
+          <div id="reviewProgress" class="review-progress">0 / 0</div>
+          <div id="reviewCurrentLabel" class="review-label">No crop selected</div>
+          <div id="reviewMeta" class="review-meta">Load or capture crops, then start keyboard review.</div>
+
+          <button id="reviewActiveBtn" class="success">Start keyboard review</button>
+          <div class="review-actions">
+            <button id="reviewHeadbandBtn" class="success"><span class="review-key">H / 1</span> Headband</button>
+            <button id="reviewNoHeadbandBtn"><span class="review-key">N / 2</span> No headband</button>
+            <button id="reviewUnsureBtn" class="secondary"><span class="review-key">U / 3</span> Unsure</button>
+            <button id="reviewDeleteBtn" class="danger"><span class="review-key">D / Del</span> Delete</button>
+            <button id="reviewPrevBtn" class="secondary">← Previous</button>
+            <button id="reviewNextBtn" class="secondary">Next → / Space</button>
+          </div>
+          <div class="note">
+            When review mode is active: <b>H</b> or <b>1</b> = headband, <b>N</b> or <b>2</b> = no_headband, <b>U</b> or <b>3</b> = unsure, <b>D</b>/<b>Delete</b>/<b>Backspace</b> = permanently remove crop, <b>Space</b>/<b>→</b> = skip forward, <b>←</b> = previous. Label/delete actions automatically advance.
+          </div>
+        </div>
       </div>
-      <div id="reviewMeta" class="review-meta"></div>
-      <div class="review-actions">
-        <button id="reviewPrevBtn" class="secondary">← Previous</button>
-        <button id="reviewHeadbandBtn" class="headband-btn">1 Headband</button>
-        <button id="reviewNoHeadbandBtn" class="nohead-btn">2 No headband</button>
-        <button id="reviewUnsureBtn" class="unsure-btn">3 Unsure</button>
-        <button id="reviewDeleteBtn" class="danger">Delete</button>
-        <button id="reviewMarkBtn" class="success">Mark checked</button>
-        <button id="reviewNextBtn" class="secondary">Next →</button>
-      </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 
   <script>
     const video = document.getElementById('video');
@@ -293,12 +389,8 @@
     const kpThreshold = document.getElementById('kpThreshold');
     const poseThreshold = document.getElementById('poseThreshold');
     const personThreshold = document.getElementById('personThreshold');
-    const hfThreshold = document.getElementById('hfThreshold');
-    const hfNmsThreshold = document.getElementById('hfNmsThreshold');
     const cropScale = document.getElementById('cropScale');
     const outputSize = document.getElementById('outputSize');
-    const soundToggle = document.getElementById('soundToggle');
-    const volumeSlider = document.getElementById('volumeSlider');
     const loadModelBtn = document.getElementById('loadModelBtn');
     const scanBtn = document.getElementById('scanBtn');
     const autoBtn = document.getElementById('autoBtn');
@@ -313,45 +405,359 @@
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const selectNoneBtn = document.getElementById('selectNoneBtn');
-    const reviewAllBtn = document.getElementById('reviewAllBtn');
-    const reviewUnreviewedBtn = document.getElementById('reviewUnreviewedBtn');
-    const reviewSummary = document.getElementById('reviewSummary');
-    const reviewModal = document.getElementById('reviewModal');
-    const reviewCounter = document.getElementById('reviewCounter');
-    const reviewCloseBtn = document.getElementById('reviewCloseBtn');
-    const reviewImageWrap = document.getElementById('reviewImageWrap');
+    const teacherProxyUrl = document.getElementById('teacherProxyUrl');
+    const saveTeacherProxyBtn = document.getElementById('saveTeacherProxyBtn');
+    const testTeacherProxyBtn = document.getElementById('testTeacherProxyBtn');
+    const enableTeacher = document.getElementById('enableTeacher');
+    const autoTeacherLabel = document.getElementById('autoTeacherLabel');
+    const teacherAutoThreshold = document.getElementById('teacherAutoThreshold');
+    const teacherConcurrency = document.getElementById('teacherConcurrency');
+    const hardLow = document.getElementById('hardLow');
+    const hardHigh = document.getElementById('hardHigh');
+    const classifyUnscoredBtn = document.getElementById('classifyUnscoredBtn');
+    const selectHardBtn = document.getElementById('selectHardBtn');
+    const teacherStatusEl = document.getElementById('teacherStatus');
+    const teacherCallCountEl = document.getElementById('teacherCallCount');
+    const hardCountEl = document.getElementById('hardCount');
+    const creditEstimateEl = document.getElementById('creditEstimate');
+    const previewFilter = document.getElementById('previewFilter');
+    const previewSort = document.getElementById('previewSort');
+    const reviewPanel = document.getElementById('reviewPanel');
+    const reviewLabelFilter = document.getElementById('reviewLabelFilter');
+    const reviewTeacherFilter = document.getElementById('reviewTeacherFilter');
+    const reviewSourceFilter = document.getElementById('reviewSourceFilter');
+    const reviewSort = document.getElementById('reviewSort');
+    const reviewPhotoFrame = document.getElementById('reviewPhotoFrame');
     const reviewImage = document.getElementById('reviewImage');
+    const reviewEmpty = document.getElementById('reviewEmpty');
+    const reviewProgress = document.getElementById('reviewProgress');
+    const reviewCurrentLabel = document.getElementById('reviewCurrentLabel');
     const reviewMeta = document.getElementById('reviewMeta');
-    const reviewPrevBtn = document.getElementById('reviewPrevBtn');
+    const reviewActiveBtn = document.getElementById('reviewActiveBtn');
     const reviewHeadbandBtn = document.getElementById('reviewHeadbandBtn');
     const reviewNoHeadbandBtn = document.getElementById('reviewNoHeadbandBtn');
     const reviewUnsureBtn = document.getElementById('reviewUnsureBtn');
     const reviewDeleteBtn = document.getElementById('reviewDeleteBtn');
-    const reviewMarkBtn = document.getElementById('reviewMarkBtn');
+    const reviewPrevBtn = document.getElementById('reviewPrevBtn');
     const reviewNextBtn = document.getElementById('reviewNextBtn');
 
     let skeletonDetector = null;
     let personDetector = null;
-    let hfSession = null;
-    let hfInputName = null;
-    let hfOutputName = null;
     let loadedDetectorType = null;
     let savedCrops = [];
-    let reviewIndex = 0;
     let scannedFrames = 0;
     let autoRunning = false;
     let lastProcessedFrame = -1;
     let isScrubbing = false;
+    let teacherQueue = [];
+    let teacherInFlight = 0;
+    let teacherCalls = 0;
+    let previewRefreshTimer = null;
+    let reviewCursor = 0;
+    let reviewCurrentId = null;
+    let reviewModeActive = false;
+    let reviewIdCounter = 0;
 
-    const HF_MODEL_URL = 'https://huggingface.co/louisJLN/yolo8-fashionpedia/resolve/2341a0b6fccba6c2349a429d243d15956b5973ee/results/yolov8n-fashionpedia-1.onnx';
-    const HF_LOCAL_MODEL_URL = './model/yolov8n-fashionpedia-1.onnx';
-    const HF_MODEL_SIZE = 640;
-    const HF_HEADBAND_ID = 15;
-    const HF_HEADBAND_LABEL = 'headband, head covering, hair accessory';
-    const hfCanvas = document.createElement('canvas');
-    hfCanvas.width = HF_MODEL_SIZE;
-    hfCanvas.height = HF_MODEL_SIZE;
-    const hfCtx = hfCanvas.getContext('2d', { willReadFrequently: true });
+    const TEACHER_CREDIT_PER_1000 = 0.0625;
+
+    teacherProxyUrl.value = localStorage.getItem('headbandTeacherProxyUrl') || '';
+
+    function normalizeLabel(v) {
+      return String(v || '').trim().toLowerCase().replace(/[ -]+/g, '_');
+    }
+
+    function extractTeacherClassification(payload) {
+      const candidates = [];
+      const visit = value => {
+        if (!value) return;
+        if (Array.isArray(value)) { value.forEach(visit); return; }
+        if (typeof value !== 'object') return;
+
+        const label = value.top ?? value.class ?? value.class_name ?? value.predicted_class ?? value.label;
+        const confidence = value.confidence ?? value.score ?? value.probability;
+        if (typeof label === 'string' && Number.isFinite(Number(confidence))) {
+          let n = Number(confidence);
+          if (n > 1 && n <= 100) n /= 100;
+          candidates.push({ label: normalizeLabel(label), confidence: n });
+        }
+
+        if (value.predictions && !Array.isArray(value.predictions) && typeof value.predictions === 'object') {
+          for (const [k, v] of Object.entries(value.predictions)) {
+            if (Number.isFinite(Number(v))) {
+              let n = Number(v);
+              if (n > 1 && n <= 100) n /= 100;
+              candidates.push({ label: normalizeLabel(k), confidence: n });
+            }
+          }
+        }
+        for (const child of Object.values(value)) visit(child);
+      };
+      visit(payload);
+
+      const hb = candidates.filter(c => c.label === 'headband').sort((a,b) => b.confidence - a.confidence)[0];
+      const nh = candidates.filter(c => c.label === 'no_headband').sort((a,b) => b.confidence - a.confidence)[0];
+      if (!hb && !nh) throw new Error('Could not find headband/no_headband scores in teacher response.');
+
+      const headbandScore = hb ? hb.confidence : Math.max(0, Math.min(1, 1 - nh.confidence));
+      const noHeadbandScore = nh ? nh.confidence : Math.max(0, Math.min(1, 1 - headbandScore));
+      const predictedLabel = headbandScore >= noHeadbandScore ? 'headband' : 'no_headband';
+      const confidence = predictedLabel === 'headband' ? headbandScore : noHeadbandScore;
+      return { label: predictedLabel, confidence, headbandScore, noHeadbandScore };
+    }
+
+    function currentHardBounds() {
+      const a = Math.max(0, Math.min(1, Number(hardLow.value)));
+      const b = Math.max(0, Math.min(1, Number(hardHigh.value)));
+      return { low: Math.min(a, b), high: Math.max(a, b) };
+    }
+
+    function updateHardFlag(crop) {
+      if (!crop || crop.teacherStatus !== 'scored' || !Number.isFinite(crop.teacherHeadbandScore)) {
+        if (crop) crop.hardExample = false;
+        return false;
+      }
+      const { low, high } = currentHardBounds();
+      crop.hardExample = crop.teacherHeadbandScore >= low && crop.teacherHeadbandScore <= high;
+      return crop.hardExample;
+    }
+
+    function updateTeacherStats() {
+      const hard = savedCrops.filter(c => updateHardFlag(c)).length;
+      teacherCallCountEl.textContent = teacherCalls;
+      hardCountEl.textContent = hard;
+      creditEstimateEl.textContent = (teacherCalls * TEACHER_CREDIT_PER_1000 / 1000).toFixed(4);
+      cropCount.textContent = savedCrops.length;
+    }
+
+    function updateTeacherStatus(message = '') {
+      const base = `Teacher queue ${teacherQueue.length} | in flight ${teacherInFlight} | calls ${teacherCalls}`;
+      teacherStatusEl.textContent = message ? `${message} | ${base}` : base;
+      updateTeacherStats();
+    }
+
+    function schedulePreviewRefresh() {
+      if (previewRefreshTimer) return;
+      previewRefreshTimer = setTimeout(() => {
+        previewRefreshTimer = null;
+        refreshPreview();
+      }, 120);
+    }
+
+    function cropReviewId(crop) {
+      if (!crop.reviewId) crop.reviewId = `review_${Date.now()}_${++reviewIdCounter}_${Math.random().toString(36).slice(2, 7)}`;
+      return crop.reviewId;
+    }
+
+    function getReviewEntries() {
+      let entries = savedCrops.map((crop, index) => ({ crop, index, id: cropReviewId(crop) }));
+
+      const labelFilter = reviewLabelFilter.value;
+      if (labelFilter !== 'all') entries = entries.filter(e => e.crop.label === labelFilter);
+
+      const teacherFilter = reviewTeacherFilter.value;
+      if (teacherFilter === 'hard') entries = entries.filter(e => updateHardFlag(e.crop));
+      else if (teacherFilter === 'scored') entries = entries.filter(e => e.crop.teacherStatus === 'scored');
+      else if (teacherFilter === 'unscored') entries = entries.filter(e => ['unscored','queued','pending','error'].includes(e.crop.teacherStatus));
+      else if (teacherFilter === 'teacher_headband') entries = entries.filter(e => e.crop.teacherStatus === 'scored' && e.crop.teacherLabel === 'headband');
+      else if (teacherFilter === 'teacher_no_headband') entries = entries.filter(e => e.crop.teacherStatus === 'scored' && e.crop.teacherLabel === 'no_headband');
+      else if (teacherFilter === 'teacher_error') entries = entries.filter(e => e.crop.teacherStatus === 'error');
+
+      const sourceFilter = reviewSourceFilter.value;
+      if (sourceFilter === 'not_manual') entries = entries.filter(e => e.crop.labelSource !== 'manual');
+      else if (sourceFilter !== 'all') entries = entries.filter(e => (e.crop.labelSource || 'default') === sourceFilter);
+
+      const sort = reviewSort.value;
+      if (sort === 'uncertain') {
+        entries.sort((a,b) => {
+          const aa = Number.isFinite(a.crop.teacherHeadbandScore) ? Math.abs(a.crop.teacherHeadbandScore - 0.5) : 99;
+          const bb = Number.isFinite(b.crop.teacherHeadbandScore) ? Math.abs(b.crop.teacherHeadbandScore - 0.5) : 99;
+          return aa - bb || a.index - b.index;
+        });
+      } else if (sort === 'newest') entries.sort((a,b) => b.index - a.index);
+      else if (sort === 'low_conf') entries.sort((a,b) => (a.crop.teacherConfidence ?? 99) - (b.crop.teacherConfidence ?? 99) || a.index - b.index);
+      else if (sort === 'high_conf') entries.sort((a,b) => (b.crop.teacherConfidence ?? -1) - (a.crop.teacherConfidence ?? -1) || a.index - b.index);
+      else if (sort === 'video_asc') entries.sort((a,b) => (a.crop.videoTimeMs ?? Number.MAX_SAFE_INTEGER) - (b.crop.videoTimeMs ?? Number.MAX_SAFE_INTEGER) || a.index - b.index);
+      else if (sort === 'video_desc') entries.sort((a,b) => (b.crop.videoTimeMs ?? -1) - (a.crop.videoTimeMs ?? -1) || b.index - a.index);
+      else if (sort === 'hard_first') entries.sort((a,b) => Number(updateHardFlag(b.crop)) - Number(updateHardFlag(a.crop)) || a.index - b.index);
+      else entries.sort((a,b) => a.index - b.index);
+
+      return entries;
+    }
+
+    function formatReviewTime(ms) {
+      if (!Number.isFinite(ms)) return 'unknown';
+      const sec = ms / 1000;
+      const m = Math.floor(sec / 60);
+      const s = (sec % 60).toFixed(2).padStart(5, '0');
+      return `${m}:${s}`;
+    }
+
+    function renderReview(preferredId = reviewCurrentId) {
+      const entries = getReviewEntries();
+      if (preferredId) {
+        const found = entries.findIndex(e => e.id === preferredId);
+        if (found >= 0) reviewCursor = found;
+      }
+      if (entries.length) reviewCursor = Math.max(0, Math.min(reviewCursor, entries.length - 1));
+      else reviewCursor = 0;
+
+      const entry = entries[reviewCursor];
+      const disabled = !entry;
+      [reviewHeadbandBtn, reviewNoHeadbandBtn, reviewUnsureBtn, reviewDeleteBtn, reviewPrevBtn, reviewNextBtn].forEach(btn => btn.disabled = disabled);
+
+      if (!entry) {
+        reviewCurrentId = null;
+        reviewImage.hidden = true;
+        reviewImage.removeAttribute('src');
+        reviewEmpty.hidden = false;
+        reviewPhotoFrame.dataset.label = '';
+        reviewProgress.textContent = '0 / 0';
+        reviewCurrentLabel.textContent = 'No crop matches the current filters';
+        reviewMeta.textContent = savedCrops.length ? 'Change the review filters or add more crops.' : 'Load or capture crops, then start keyboard review.';
+        return;
+      }
+
+      const crop = entry.crop;
+      reviewCurrentId = entry.id;
+      reviewImage.src = crop.dataUrl;
+      reviewImage.hidden = false;
+      reviewEmpty.hidden = true;
+      reviewPhotoFrame.dataset.label = crop.label || '';
+      reviewProgress.textContent = `${reviewCursor + 1} / ${entries.length}  (${savedCrops.length} total crops)`;
+      reviewCurrentLabel.textContent = `Final label: ${crop.label} | source: ${crop.labelSource || 'default'}${crop.hardExample ? ' | HARD EXAMPLE' : ''}`;
+
+      const teacherLine = crop.teacherStatus === 'scored'
+        ? `${crop.teacherLabel} ${(crop.teacherConfidence * 100).toFixed(1)}% | HB ${(crop.teacherHeadbandScore * 100).toFixed(1)}% | NO ${(crop.teacherNoHeadbandScore * 100).toFixed(1)}%`
+        : crop.teacherStatus === 'error' ? `error - ${crop.teacherError || 'unknown error'}` : crop.teacherStatus || 'unscored';
+      reviewMeta.innerHTML =
+        `<b>Teacher:</b> ${teacherLine}<br>` +
+        `<b>Video time:</b> ${formatReviewTime(crop.videoTimeMs)}<br>` +
+        `<b>Detector:</b> ${crop.detectorType || 'unknown'}<br>` +
+        `<b>Crop mode:</b> ${crop.mode || 'unknown'}<br>` +
+        `<b>Filename:</b> ${crop.name}`;
+    }
+
+    function setReviewMode(active) {
+      reviewModeActive = Boolean(active);
+      reviewActiveBtn.textContent = reviewModeActive ? 'Stop keyboard review' : 'Start keyboard review';
+      reviewPanel.classList.toggle('review-active', reviewModeActive);
+      if (reviewModeActive) renderReview();
+    }
+
+    function reviewMove(delta) {
+      const entries = getReviewEntries();
+      if (!entries.length) return;
+      reviewCursor = Math.max(0, Math.min(entries.length - 1, reviewCursor + delta));
+      reviewCurrentId = entries[reviewCursor].id;
+      renderReview(reviewCurrentId);
+    }
+
+    function reviewApplyLabel(label) {
+      const entries = getReviewEntries();
+      const entry = entries[reviewCursor];
+      if (!entry) return;
+      const nextId = entries[reviewCursor + 1]?.id || null;
+      relabelCrop(entry.index, label, 'manual');
+      refreshPreview();
+      if (nextId) renderReview(nextId);
+      else { reviewCurrentId = null; renderReview(); }
+    }
+
+    function reviewDeleteCurrent() {
+      const entries = getReviewEntries();
+      const entry = entries[reviewCursor];
+      if (!entry) return;
+      const nextId = entries[reviewCursor + 1]?.id || null;
+      const crop = entry.crop;
+      teacherQueue = teacherQueue.filter(c => c !== crop);
+      savedCrops.splice(entry.index, 1);
+      reviewCurrentId = null;
+      refreshPreview();
+      if (nextId) renderReview(nextId);
+      else renderReview();
+      updateTeacherStatus('Deleted crop from dataset');
+    }
+
+    async function callTeacher(crop) {
+      const proxy = teacherProxyUrl.value.trim().replace(/\/$/, '');
+      if (!proxy) throw new Error('No Cloudflare Worker proxy URL set.');
+      const base64 = String(crop.dataUrl || '').split(',')[1];
+      if (!base64) throw new Error('Crop has no JPEG data.');
+
+      teacherCalls += 1;
+      updateTeacherStats();
+      const response = await fetch(proxy, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 })
+      });
+      const text = await response.text();
+      let payload = null;
+      try { payload = text ? JSON.parse(text) : {}; } catch (_) {}
+      if (!response.ok) {
+        const detail = payload ? JSON.stringify(payload).slice(0, 400) : text.slice(0, 400);
+        throw new Error(`HTTP ${response.status}: ${detail || response.statusText}`);
+      }
+      if (!payload) throw new Error('Teacher proxy returned non-JSON data.');
+      return extractTeacherClassification(payload);
+    }
+
+    function applyTeacherResult(crop, result) {
+      crop.teacherStatus = 'scored';
+      crop.teacherLabel = result.label;
+      crop.teacherConfidence = result.confidence;
+      crop.teacherHeadbandScore = result.headbandScore;
+      crop.teacherNoHeadbandScore = result.noHeadbandScore;
+      updateHardFlag(crop);
+
+      if (autoTeacherLabel.checked && crop.labelSource !== 'manual') {
+        const minConf = Math.max(0.5, Math.min(0.999, Number(teacherAutoThreshold.value)));
+        const idx = savedCrops.indexOf(crop);
+        if (idx >= 0) {
+          if (result.confidence >= minConf) relabelCrop(idx, result.label, 'teacher');
+          else relabelCrop(idx, 'unsure', 'teacher_review');
+        }
+      }
+    }
+
+    async function processTeacherCrop(crop) {
+      crop.teacherStatus = 'pending';
+      try {
+        const result = await callTeacher(crop);
+        applyTeacherResult(crop, result);
+      } catch (err) {
+        crop.teacherStatus = 'error';
+        crop.teacherError = err && err.message ? err.message : String(err);
+      } finally {
+        schedulePreviewRefresh();
+      }
+    }
+
+    function pumpTeacherQueue() {
+      const limit = Math.max(1, Math.min(8, Number(teacherConcurrency.value) || 4));
+      while (teacherInFlight < limit && teacherQueue.length) {
+        const crop = teacherQueue.shift();
+        if (!crop || !savedCrops.includes(crop)) continue;
+        teacherInFlight += 1;
+        processTeacherCrop(crop).finally(() => {
+          teacherInFlight -= 1;
+          updateTeacherStatus();
+          pumpTeacherQueue();
+        });
+      }
+      updateTeacherStatus();
+    }
+
+    function queueTeacherCrop(crop, force = false) {
+      if (!crop) return;
+      if (!force && ['queued','pending','scored'].includes(crop.teacherStatus)) return;
+      if (teacherQueue.includes(crop)) return;
+      crop.teacherStatus = 'queued';
+      crop.teacherError = '';
+      teacherQueue.push(crop);
+      pumpTeacherQueue();
+      schedulePreviewRefresh();
+    }
 
     const skeletonEdges = [
       ['nose','left_eye'], ['nose','right_eye'], ['left_eye','left_ear'], ['right_eye','right_ear'],
@@ -496,113 +902,6 @@
       return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
     }
 
-    function makeHfCropRect(detection) {
-      const r = detection.rect;
-      const scale = Number(cropScale.value);
-      const base = Math.max(r.w, r.h * 2.0, 32);
-      let cropW = base * scale;
-      let cropH = cropW;
-      let centerX = r.x + r.w / 2;
-      let centerY = r.y + r.h / 2;
-      if (cropMode.value === 'head_shoulders') {
-        cropW *= 1.35;
-        cropH = cropW * 1.15;
-        centerY += cropH * 0.18;
-      }
-      return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
-    }
-
-    function rectIou(a, b) {
-      const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
-      const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
-      const iw = Math.max(0, x2 - x1), ih = Math.max(0, y2 - y1);
-      const inter = iw * ih;
-      const union = a.w * a.h + b.w * b.h - inter;
-      return union > 0 ? inter / union : 0;
-    }
-
-    function hfNms(detections, threshold) {
-      const sorted = [...detections].sort((a, b) => b.score - a.score);
-      const keep = [];
-      while (sorted.length) {
-        const best = sorted.shift();
-        keep.push(best);
-        for (let i = sorted.length - 1; i >= 0; i--) {
-          if (rectIou(sorted[i].rect, best.rect) > threshold) sorted.splice(i, 1);
-        }
-      }
-      return keep;
-    }
-
-    function preprocessForHf() {
-      hfCtx.drawImage(video, 0, 0, HF_MODEL_SIZE, HF_MODEL_SIZE);
-      const rgba = hfCtx.getImageData(0, 0, HF_MODEL_SIZE, HF_MODEL_SIZE).data;
-      const plane = HF_MODEL_SIZE * HF_MODEL_SIZE;
-      const data = new Float32Array(plane * 3);
-      for (let i = 0, p = 0; i < rgba.length; i += 4, p++) {
-        data[p] = rgba[i] / 255;
-        data[plane + p] = rgba[i + 1] / 255;
-        data[plane * 2 + p] = rgba[i + 2] / 255;
-      }
-      return new ort.Tensor('float32', data, [1, 3, HF_MODEL_SIZE, HF_MODEL_SIZE]);
-    }
-
-    function decodeHfOutput(output) {
-      const dims = output.dims;
-      if (!dims || dims.length !== 3) throw new Error('Unexpected Hugging Face YOLO output shape: ' + JSON.stringify(dims));
-      const data = output.data;
-      let attrs, count, get;
-      if (dims[1] < dims[2]) {
-        attrs = dims[1]; count = dims[2];
-        get = (box, attr) => data[attr * count + box];
-      } else {
-        count = dims[1]; attrs = dims[2];
-        get = (box, attr) => data[box * attrs + attr];
-      }
-      const classCount = attrs - 4;
-      if (HF_HEADBAND_ID >= classCount) throw new Error(`HF model has ${classCount} classes; expected headband class ${HF_HEADBAND_ID}.`);
-      const threshold = Number(hfThreshold.value);
-      const candidates = [];
-      for (let i = 0; i < count; i++) {
-        const score = get(i, 4 + HF_HEADBAND_ID);
-        if (score < threshold) continue;
-        const cx = get(i, 0), cy = get(i, 1), w = get(i, 2), h = get(i, 3);
-        const rect = clampRect(
-          (cx - w / 2) * video.videoWidth / HF_MODEL_SIZE,
-          (cy - h / 2) * video.videoHeight / HF_MODEL_SIZE,
-          w * video.videoWidth / HF_MODEL_SIZE,
-          h * video.videoHeight / HF_MODEL_SIZE,
-          video.videoWidth,
-          video.videoHeight
-        );
-        candidates.push({ rect, score, classId: HF_HEADBAND_ID, classLabel: HF_HEADBAND_LABEL });
-      }
-      return hfNms(candidates, Number(hfNmsThreshold.value)).slice(0, 50);
-    }
-
-    async function runHfDetector() {
-      if (!hfSession) return [];
-      const input = preprocessForHf();
-      const results = await hfSession.run({ [hfInputName]: input });
-      return decodeHfOutput(results[hfOutputName]);
-    }
-
-    async function loadHfModel() {
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.simd = true;
-      ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
-      if (!hfSession) {
-        try {
-          hfSession = await ort.InferenceSession.create(HF_MODEL_URL, { executionProviders: ['wasm'] });
-        } catch (remoteErr) {
-          console.warn('Remote HF model failed; trying local model path.', remoteErr);
-          hfSession = await ort.InferenceSession.create(HF_LOCAL_MODEL_URL, { executionProviders: ['wasm'] });
-        }
-      }
-      hfInputName = hfSession.inputNames[0];
-      hfOutputName = hfSession.outputNames[0];
-    }
-
     function drawOverlay(detections) {
       ctx.clearRect(0, 0, overlay.width, overlay.height);
       if (!video.videoWidth) return;
@@ -653,20 +952,6 @@
           ctx.lineWidth = 2;
           ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
         });
-      } else if (loadedDetectorType === 'hf') {
-        detections.forEach((det, index) => {
-          const r = det.rect;
-          ctx.strokeStyle = '#ff4fd8';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(r.x * scaleX + offsetX, r.y * scaleY + offsetY, r.w * scaleX, r.h * scaleY);
-          ctx.fillStyle = '#ff4fd8';
-          ctx.font = '14px Arial';
-          ctx.fillText(`HF headband ${index + 1} ${Math.round(det.score * 100)}%`, r.x * scaleX + offsetX + 4, r.y * scaleY + offsetY - 6);
-          const rect = makeHfCropRect(det);
-          ctx.strokeStyle = 'yellow';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
-        });
       }
     }
 
@@ -699,17 +984,11 @@
         const predictions = await personDetector.detect(video);
         return predictions.filter(p => p.class === 'person' && p.score >= Number(personThreshold.value));
       }
-      if (loadedDetectorType === 'hf') {
-        return await runHfDetector();
-      }
       return [];
     }
 
     function rectForDetection(det) {
-      if (loadedDetectorType === 'skeleton') return makeSkeletonCropRect(det);
-      if (loadedDetectorType === 'coco') return makeCocoCropRect(det);
-      if (loadedDetectorType === 'hf') return makeHfCropRect(det);
-      return null;
+      return loadedDetectorType === 'skeleton' ? makeSkeletonCropRect(det) : makeCocoCropRect(det);
     }
 
     async function scanFrame(save = true) {
@@ -732,26 +1011,42 @@
         const timestamp = Math.round(video.currentTime * 1000);
         const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const name = `${label}_${detectorType}_${mode}_t${timestamp}_p${i}_${id}.jpg`;
-        const det = detections[i];
-        savedCrops.push({
-          label, mode, detectorType, name, blob, dataUrl, selected: false, reviewed: false,
-          detectorScore: typeof det?.score === 'number' ? det.score : null,
-          detectorClass: det?.classLabel || det?.class || null,
-          timestampMs: timestamp
-        });
+        const crop = {
+          label, labelSource: 'default', mode, detectorType, name, blob, dataUrl, selected: false, reviewId: id,
+          videoTimeMs: timestamp, teacherStatus: 'unscored', teacherLabel: null, teacherConfidence: null,
+          teacherHeadbandScore: null, teacherNoHeadbandScore: null, hardExample: false, teacherError: ''
+        };
+        savedCrops.push(crop);
         addPreview(savedCrops.length - 1);
+        if (enableTeacher.checked) {
+          if (teacherProxyUrl.value.trim()) queueTeacherCrop(crop);
+          else updateTeacherStatus('Teacher enabled, but no proxy URL is set');
+        }
       }
       refreshPreview();
-      setStatus(`Scanned frame: ${detections.length} ${loadedDetectorType === 'hf' ? 'HF headband detections' : 'detections'}, ${savedCrops.length} total crops saved.`);
+      setStatus(`Scanned frame: ${detections.length} detections, ${savedCrops.length} total crops saved.`);
       return detections;
     }
 
-    function addPreview(index) {
-      const crop = savedCrops[index];
+    function teacherMetaText(crop) {
+      if (crop.teacherStatus === 'scored') {
+        const hb = (crop.teacherHeadbandScore * 100).toFixed(1);
+        const conf = (crop.teacherConfidence * 100).toFixed(1);
+        return `Teacher: ${crop.teacherLabel} ${conf}% | HB ${hb}%${crop.hardExample ? ' | HARD' : ''}`;
+      }
+      if (crop.teacherStatus === 'error') return `Teacher error: ${crop.teacherError || 'unknown error'}`;
+      if (crop.teacherStatus === 'pending') return 'Teacher: classifying...';
+      if (crop.teacherStatus === 'queued') return 'Teacher: queued';
+      return 'Teacher: unscored';
+    }
+
+    function buildPreviewItem(crop, index) {
+      updateHardFlag(crop);
       const item = document.createElement('div');
-      item.className = `thumb${crop.reviewed ? ' reviewed' : ''}`;
+      item.className = `thumb${crop.selected ? ' selected' : ''}${crop.hardExample ? ' hard' : ''}${crop.teacherStatus === 'error' ? ' teacher-error' : ''}`;
       item.dataset.index = index;
       item.dataset.label = crop.label;
+      const meta = teacherMetaText(crop);
       item.innerHTML = `
         <button class="delete" title="delete crop">X</button>
         <img src="${crop.dataUrl}" alt="crop">
@@ -763,16 +1058,19 @@
             <option value="unsure">unsure</option>
           </select>
         </div>
-        <div class="meta" title="${crop.name}">${crop.detectorScore != null ? Math.round(crop.detectorScore * 100) + '% · ' : ''}${crop.name}</div>`;
+        <div class="teacher-meta" title="${meta}">${meta}<br>Label source: ${crop.labelSource || 'default'}</div>
+        <div class="meta" title="${crop.name}">${crop.name}</div>`;
       item.querySelector('.crop-label').value = crop.label;
       item.addEventListener('click', (e) => {
         if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
         const idx = Number(item.dataset.index);
+        if (!savedCrops[idx]) return;
         savedCrops[idx].selected = !savedCrops[idx].selected;
         refreshPreview();
       });
       item.querySelector('.delete').addEventListener('click', () => {
         const idx = Number(item.dataset.index);
+        if (!savedCrops[idx]) return;
         savedCrops.splice(idx, 1);
         refreshPreview();
       });
@@ -784,26 +1082,25 @@
       });
       item.querySelector('.crop-label').addEventListener('change', (e) => {
         const idx = Number(item.dataset.index);
-        relabelCrop(idx, e.target.value);
+        relabelCrop(idx, e.target.value, 'manual');
         refreshPreview();
       });
-      previewGrid.prepend(item);
+      return item;
     }
 
-    function relabelCrop(index, newLabel) {
+    function addPreview(index) {
       const crop = savedCrops[index];
       if (!crop) return;
-      const parts = crop.name.split('_');
-      parts[0] = newLabel;
-      if (newLabel === 'no_headband') {
-        crop.name = crop.name.replace(/^(headband|no_headband|unsure)_/, 'no_headband_');
-      } else {
-        crop.name = crop.name.replace(/^(headband|no_headband|unsure)_/, `${newLabel}_`);
-      }
-      crop.label = newLabel;
+      previewGrid.prepend(buildPreviewItem(crop, index));
     }
 
-
+    function relabelCrop(index, newLabel, source = 'manual') {
+      const crop = savedCrops[index];
+      if (!crop) return;
+      crop.name = crop.name.replace(/^(headband|no_headband|unsure)_/, `${newLabel}_`);
+      crop.label = newLabel;
+      crop.labelSource = source;
+    }
 
     function cycleCropLabel(index) {
       const crop = savedCrops[index];
@@ -811,129 +1108,34 @@
       const labels = ['headband', 'no_headband', 'unsure'];
       const current = labels.indexOf(crop.label);
       const next = labels[(current + 1) % labels.length];
-      relabelCrop(index, next);
+      relabelCrop(index, next, 'manual');
     }
 
     function refreshPreview() {
       previewGrid.innerHTML = '';
-      savedCrops.forEach((crop, index) => {
-        const item = document.createElement('div');
-        item.className = `thumb${crop.selected ? ' selected' : ''}${crop.reviewed ? ' reviewed' : ''}`;
-        item.dataset.index = index;
-        item.dataset.label = crop.label;
-        item.innerHTML = `
-          <button class="delete" title="delete crop">X</button>
-          <img src="${crop.dataUrl}" alt="crop">
-          <div class="crop-actions">
-            <button class="toggle-label" title="Cycle label">${crop.label}</button>
-            <select class="crop-label" title="Set label">
-              <option value="headband">headband</option>
-              <option value="no_headband">no_headband</option>
-              <option value="unsure">unsure</option>
-            </select>
-          </div>
-          <div class="meta" title="${crop.name}">${crop.detectorScore != null ? Math.round(crop.detectorScore * 100) + '% · ' : ''}${crop.name}</div>`;
-        item.querySelector('.crop-label').value = crop.label;
-        item.addEventListener('click', (e) => {
-          if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
-          savedCrops[index].selected = !savedCrops[index].selected;
-          refreshPreview();
-        });
-        item.querySelector('.delete').addEventListener('click', () => {
-          savedCrops.splice(index, 1);
-          refreshPreview();
-        });
-        item.querySelector('.toggle-label').addEventListener('click', (e) => {
-          e.stopPropagation();
-          cycleCropLabel(index);
-          refreshPreview();
-        });
-        item.querySelector('.crop-label').addEventListener('change', (e) => {
-          relabelCrop(index, e.target.value);
-          refreshPreview();
-        });
-        previewGrid.prepend(item);
-      });
-      cropCount.textContent = savedCrops.length;
-      downloadBtn.disabled = savedCrops.length === 0;
-      const reviewed = savedCrops.filter(c => c.reviewed).length;
-      reviewSummary.textContent = `Reviewed ${reviewed} / ${savedCrops.length}`;
-      reviewAllBtn.disabled = savedCrops.length === 0;
-      reviewUnreviewedBtn.disabled = savedCrops.length === 0 || reviewed === savedCrops.length;
-      if (reviewModal.classList.contains('open')) renderReview();
-    }
+      let entries = savedCrops.map((crop, index) => ({ crop, index }));
+      const filter = previewFilter.value;
+      if (filter === 'hard') entries = entries.filter(e => updateHardFlag(e.crop));
+      else if (filter === 'unscored') entries = entries.filter(e => ['unscored','queued','pending','error'].includes(e.crop.teacherStatus));
+      else if (['headband','no_headband','unsure'].includes(filter)) entries = entries.filter(e => e.crop.label === filter);
 
-    function renderReview() {
-      if (!savedCrops.length) {
-        closeReview();
-        return;
+      const sort = previewSort.value;
+      if (sort === 'uncertain') {
+        entries.sort((a,b) => {
+          const aa = Number.isFinite(a.crop.teacherHeadbandScore) ? Math.abs(a.crop.teacherHeadbandScore - 0.5) : 99;
+          const bb = Number.isFinite(b.crop.teacherHeadbandScore) ? Math.abs(b.crop.teacherHeadbandScore - 0.5) : 99;
+          return aa - bb || b.index - a.index;
+        });
+      } else if (sort === 'teacher_conf') {
+        entries.sort((a,b) => (b.crop.teacherConfidence ?? -1) - (a.crop.teacherConfidence ?? -1) || b.index - a.index);
+      } else {
+        entries.sort((a,b) => b.index - a.index);
       }
-      reviewIndex = Math.max(0, Math.min(reviewIndex, savedCrops.length - 1));
-      const crop = savedCrops[reviewIndex];
-      reviewImage.src = crop.dataUrl;
-      reviewImageWrap.dataset.label = crop.label;
-      reviewCounter.textContent = `${reviewIndex + 1} / ${savedCrops.length} · ${crop.reviewed ? 'checked' : 'not checked'}`;
-      const detectorText = crop.detectorScore != null ? ` · detector ${Math.round(crop.detectorScore * 100)}%` : '';
-      reviewMeta.textContent = `${crop.label}${detectorText} · ${crop.detectorType} · ${crop.name}`;
-      reviewPrevBtn.disabled = reviewIndex <= 0;
-      reviewNextBtn.disabled = reviewIndex >= savedCrops.length - 1;
-      reviewMarkBtn.textContent = crop.reviewed ? 'Checked ✓' : 'Mark checked';
-    }
 
-    function openReview(index = 0) {
-      if (!savedCrops.length) return;
-      reviewIndex = Math.max(0, Math.min(index, savedCrops.length - 1));
-      reviewModal.classList.add('open');
-      reviewModal.setAttribute('aria-hidden', 'false');
-      renderReview();
-    }
-
-    function closeReview() {
-      reviewModal.classList.remove('open');
-      reviewModal.setAttribute('aria-hidden', 'true');
-      refreshPreview();
-    }
-
-    function markCurrentReviewed() {
-      const crop = savedCrops[reviewIndex];
-      if (crop) crop.reviewed = true;
-    }
-
-    function reviewMove(delta, mark = true) {
-      if (!savedCrops.length) return;
-      if (mark) markCurrentReviewed();
-      reviewIndex = Math.max(0, Math.min(savedCrops.length - 1, reviewIndex + delta));
-      renderReview();
-      refreshReviewSummaryOnly();
-    }
-
-    function refreshReviewSummaryOnly() {
-      const reviewed = savedCrops.filter(c => c.reviewed).length;
-      reviewSummary.textContent = `Reviewed ${reviewed} / ${savedCrops.length}`;
-      reviewUnreviewedBtn.disabled = savedCrops.length === 0 || reviewed === savedCrops.length;
-    }
-
-    function reviewSetLabel(label, advance = true) {
-      if (!savedCrops[reviewIndex]) return;
-      relabelCrop(reviewIndex, label);
-      savedCrops[reviewIndex].reviewed = true;
-      if (advance && reviewIndex < savedCrops.length - 1) reviewIndex += 1;
-      renderReview();
-      refreshReviewSummaryOnly();
-    }
-
-    function reviewDeleteCurrent() {
-      if (!savedCrops.length) return;
-      savedCrops.splice(reviewIndex, 1);
-      if (reviewIndex >= savedCrops.length) reviewIndex = Math.max(0, savedCrops.length - 1);
-      refreshPreview();
-      if (savedCrops.length) renderReview();
-    }
-
-    function openNextUnreviewed() {
-      const idx = savedCrops.findIndex(c => !c.reviewed);
-      if (idx >= 0) openReview(idx);
-      else setStatus('All saved crops have been reviewed.');
+      for (const { crop, index } of entries) previewGrid.appendChild(buildPreviewItem(crop, index));
+      updateTeacherStats();
+      downloadBtn.disabled = savedCrops.length === 0;
+      renderReview(reviewCurrentId);
     }
 
     function applyLabelToSelected(label) {
@@ -966,19 +1168,6 @@
       }
       requestAnimationFrame(autoLoop);
     }
-
-    soundToggle.addEventListener('click', () => {
-      video.muted = !video.muted;
-      soundToggle.textContent = video.muted ? 'Sound: Off' : 'Sound: On';
-    });
-
-    volumeSlider.addEventListener('input', () => {
-      video.volume = Number(volumeSlider.value);
-      if (video.volume > 0 && video.muted) {
-        video.muted = false;
-        soundToggle.textContent = 'Sound: On';
-      }
-    });
 
     videoFile.addEventListener('change', () => {
       const file = videoFile.files[0];
@@ -1045,32 +1234,25 @@
       const type = detectorSelect.value;
       loadModelBtn.disabled = true;
       try {
-        if (type === 'hf') {
-          setStatus('Loading Hugging Face Fashionpedia YOLO headband detector...');
-          await loadHfModel();
-          loadedDetectorType = 'hf';
-          setStatus('Hugging Face headband detector loaded. It exports only class 15; hats, scarves, and hoods are excluded.');
-        } else {
-          await tf.setBackend('webgl');
-          await tf.ready();
-          if (type === 'skeleton') {
-            setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
-            if (!skeletonDetector) {
-              skeletonDetector = await poseDetection.createDetector(
-                poseDetection.SupportedModels.MoveNet,
-                { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
-              );
-            }
-            loadedDetectorType = 'skeleton';
-            setStatus('Skeleton model loaded. Scan a paused frame or start auto export.');
-          } else {
-            setStatus('Loading COCO-SSD person detector...');
-            if (!personDetector) {
-              personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
-            }
-            loadedDetectorType = 'coco';
-            setStatus('COCO person detector loaded. Scan a paused frame or start auto export.');
+        await tf.setBackend('webgl');
+        await tf.ready();
+        if (type === 'skeleton') {
+          setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
+          if (!skeletonDetector) {
+            skeletonDetector = await poseDetection.createDetector(
+              poseDetection.SupportedModels.MoveNet,
+              { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
+            );
           }
+          loadedDetectorType = 'skeleton';
+          setStatus('Skeleton model loaded. Scan a paused frame or start auto export.');
+        } else {
+          setStatus('Loading COCO-SSD person detector...');
+          if (!personDetector) {
+            personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
+          }
+          loadedDetectorType = 'coco';
+          setStatus('COCO person detector loaded. Scan a paused frame or start auto export.');
         }
         loadModelBtn.textContent = 'Model loaded';
         updateActionButtons();
@@ -1088,7 +1270,7 @@
       if (autoRunning) {
         autoBtn.textContent = 'Stop auto export';
         video.playbackRate = Number(autoSpeed.value);
-        setStatus(`Auto export running at ${video.playbackRate}x. ${loadedDetectorType === 'hf' ? 'HF inference is heavier; use 0.25x or 0.5x if frames are skipped.' : 'Lower speed if detections miss people.'}`);
+        setStatus(`Auto export running at ${video.playbackRate}x. Lower speed if detections miss people.`);
         if (video.paused) await video.play();
         autoLoop();
       } else {
@@ -1104,7 +1286,9 @@
 
     clearBtn.addEventListener('click', () => {
       savedCrops = [];
+      teacherQueue = [];
       refreshPreview();
+      updateTeacherStatus('Cleared saved crops');
       setStatus('Cleared saved crops.');
     });
 
@@ -1112,30 +1296,89 @@
     deleteSelectedBtn.addEventListener('click', deleteSelected);
     selectAllBtn.addEventListener('click', () => { savedCrops.forEach(c => c.selected = true); refreshPreview(); });
     selectNoneBtn.addEventListener('click', () => { savedCrops.forEach(c => c.selected = false); refreshPreview(); });
-    reviewAllBtn.addEventListener('click', () => openReview(0));
-    reviewUnreviewedBtn.addEventListener('click', openNextUnreviewed);
-    reviewCloseBtn.addEventListener('click', closeReview);
+
+    saveTeacherProxyBtn.addEventListener('click', () => {
+      const url = teacherProxyUrl.value.trim().replace(/\/$/, '');
+      teacherProxyUrl.value = url;
+      if (url) localStorage.setItem('headbandTeacherProxyUrl', url);
+      else localStorage.removeItem('headbandTeacherProxyUrl');
+      updateTeacherStatus(url ? 'Proxy URL saved locally' : 'Proxy URL cleared');
+    });
+
+    testTeacherProxyBtn.addEventListener('click', async () => {
+      const crop = savedCrops.find(c => c.dataUrl);
+      if (!crop) { updateTeacherStatus('Save at least one crop before testing'); return; }
+      if (!teacherProxyUrl.value.trim()) { updateTeacherStatus('Enter your Worker proxy URL first'); return; }
+      testTeacherProxyBtn.disabled = true;
+      try {
+        const result = await callTeacher(crop);
+        updateTeacherStatus(`Test OK: ${result.label} ${(result.confidence * 100).toFixed(1)}% | HB ${(result.headbandScore * 100).toFixed(1)}%`);
+      } catch (err) {
+        updateTeacherStatus('Test failed: ' + (err && err.message ? err.message : String(err)));
+      } finally {
+        testTeacherProxyBtn.disabled = false;
+      }
+    });
+
+    enableTeacher.addEventListener('change', () => {
+      updateTeacherStatus(enableTeacher.checked ? 'Teacher auto-classification enabled' : 'Teacher auto-classification disabled');
+    });
+
+    classifyUnscoredBtn.addEventListener('click', () => {
+      if (!teacherProxyUrl.value.trim()) { updateTeacherStatus('Enter your Worker proxy URL first'); return; }
+      let queued = 0;
+      for (const crop of savedCrops) {
+        if (!['scored','queued','pending'].includes(crop.teacherStatus)) { queueTeacherCrop(crop, true); queued += 1; }
+      }
+      updateTeacherStatus(`Queued ${queued} unscored crop${queued === 1 ? '' : 's'}`);
+    });
+
+    selectHardBtn.addEventListener('click', () => {
+      savedCrops.forEach(c => { c.selected = updateHardFlag(c); });
+      previewFilter.value = 'hard';
+      previewSort.value = 'uncertain';
+      refreshPreview();
+      updateTeacherStatus('Selected teacher-hard examples');
+    });
+
+    teacherConcurrency.addEventListener('change', pumpTeacherQueue);
+    hardLow.addEventListener('change', refreshPreview);
+    hardHigh.addEventListener('change', refreshPreview);
+    previewFilter.addEventListener('change', refreshPreview);
+    previewSort.addEventListener('change', refreshPreview);
+
+    function resetReviewQueue() {
+      reviewCursor = 0;
+      reviewCurrentId = null;
+      renderReview();
+    }
+    reviewLabelFilter.addEventListener('change', resetReviewQueue);
+    reviewTeacherFilter.addEventListener('change', resetReviewQueue);
+    reviewSourceFilter.addEventListener('change', resetReviewQueue);
+    reviewSort.addEventListener('change', resetReviewQueue);
+    reviewActiveBtn.addEventListener('click', () => setReviewMode(!reviewModeActive));
+    reviewHeadbandBtn.addEventListener('click', () => reviewApplyLabel('headband'));
+    reviewNoHeadbandBtn.addEventListener('click', () => reviewApplyLabel('no_headband'));
+    reviewUnsureBtn.addEventListener('click', () => reviewApplyLabel('unsure'));
+    reviewDeleteBtn.addEventListener('click', reviewDeleteCurrent);
     reviewPrevBtn.addEventListener('click', () => reviewMove(-1));
     reviewNextBtn.addEventListener('click', () => reviewMove(1));
-    reviewHeadbandBtn.addEventListener('click', () => reviewSetLabel('headband'));
-    reviewNoHeadbandBtn.addEventListener('click', () => reviewSetLabel('no_headband'));
-    reviewUnsureBtn.addEventListener('click', () => reviewSetLabel('unsure'));
-    reviewDeleteBtn.addEventListener('click', reviewDeleteCurrent);
-    reviewMarkBtn.addEventListener('click', () => { markCurrentReviewed(); renderReview(); refreshReviewSummaryOnly(); });
-    reviewModal.addEventListener('click', (e) => { if (e.target === reviewModal) closeReview(); });
 
     document.addEventListener('keydown', (e) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-      if (reviewModal.classList.contains('open')) {
-        if (e.key === '1') reviewSetLabel('headband');
-        else if (e.key === '2') reviewSetLabel('no_headband');
-        else if (e.key === '3') reviewSetLabel('unsure');
-        else if (e.key === 'ArrowLeft') reviewMove(-1);
-        else if (e.key === 'ArrowRight' || e.key === ' ') reviewMove(1);
-        else if (e.key === 'Delete' || e.key === 'Backspace') reviewDeleteCurrent();
-        else if (e.key === 'Escape') closeReview();
+
+      if (reviewModeActive) {
+        const key = e.key.toLowerCase();
+        if (key === 'h' || e.key === '1') { e.preventDefault(); reviewApplyLabel('headband'); return; }
+        if (key === 'n' || e.key === '2') { e.preventDefault(); reviewApplyLabel('no_headband'); return; }
+        if (key === 'u' || e.key === '3') { e.preventDefault(); reviewApplyLabel('unsure'); return; }
+        if (key === 'd' || e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); reviewDeleteCurrent(); return; }
+        if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); reviewMove(1); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); reviewMove(-1); return; }
+        if (e.key === 'Escape') { e.preventDefault(); setReviewMode(false); return; }
         return;
       }
+
       if (e.key === '1') applyLabelToSelected('headband');
       if (e.key === '2') applyLabelToSelected('no_headband');
       if (e.key === '3') applyLabelToSelected('unsure');
@@ -1144,8 +1387,6 @@
 
     downloadBtn.addEventListener('click', async () => {
       if (!savedCrops.length) return;
-      const unreviewed = savedCrops.filter(c => !c.reviewed).length;
-      if (unreviewed > 0 && !window.confirm(`${unreviewed} crop${unreviewed === 1 ? '' : 's'} have not been checked in Review mode. Download anyway?`)) return;
       setStatus('Building ZIP...');
       const zip = new JSZip();
       for (const crop of savedCrops) {
@@ -1153,15 +1394,35 @@
       }
       const manifest = savedCrops.map(c => ({
         label: c.label,
+        label_source: c.labelSource || 'default',
         mode: c.mode,
         detector: c.detectorType,
-        detectorScore: c.detectorScore,
-        detectorClass: c.detectorClass,
-        timestampMs: c.timestampMs,
-        reviewed: Boolean(c.reviewed),
+        video_time_ms: c.videoTimeMs ?? null,
+        teacher_status: c.teacherStatus || 'unscored',
+        teacher_label: c.teacherLabel ?? null,
+        teacher_confidence: c.teacherConfidence ?? null,
+        teacher_scores: c.teacherStatus === 'scored' ? {
+          headband: c.teacherHeadbandScore,
+          no_headband: c.teacherNoHeadbandScore
+        } : null,
+        hard_example: Boolean(c.hardExample),
         filename: `${c.label}/${c.name}`
       }));
       zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
+      const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const csvRows = [[
+        'filename','label','label_source','teacher_status','teacher_label','teacher_confidence',
+        'teacher_headband_score','teacher_no_headband_score','hard_example','video_time_ms','detector','crop_mode'
+      ]];
+      for (const c of savedCrops) {
+        csvRows.push([
+          `${c.label}/${c.name}`, c.label, c.labelSource || 'default', c.teacherStatus || 'unscored',
+          c.teacherLabel ?? '', c.teacherConfidence ?? '', c.teacherHeadbandScore ?? '', c.teacherNoHeadbandScore ?? '',
+          Boolean(c.hardExample), c.videoTimeMs ?? '', c.detectorType, c.mode
+        ]);
+      }
+      zip.file('teacher_labels.csv', csvRows.map(row => row.map(csvEscape).join(',')).join('\n'));
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(zipBlob);
@@ -1169,10 +1430,12 @@
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setStatus('ZIP downloaded. Upload the ZIP to Roboflow as a classification dataset.');
+      setStatus('ZIP downloaded. teacher_labels.csv and manifest.json include teacher scores for distillation and review.');
     });
 
+    updateTeacherStatus(teacherProxyUrl.value ? 'Saved teacher proxy URL loaded' : 'Teacher off - add the Worker proxy URL to enable it');
     refreshPreview();
+    renderReview();
   </script>
 </body>
 </html>

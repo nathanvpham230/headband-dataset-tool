@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Headband Dataset Builder</title>
+  <title>Headband Dataset Builder - Phone-Matched Crops</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #eee; }
@@ -87,7 +87,7 @@
 <body>
   <header>
     <h1>Headband Dataset Builder</h1>
-    <p>Load local video, extract head crops, optionally use the Roboflow model as a teacher, review hard examples, and download a training-ready ZIP.</p>
+    <p>Load local video, extract phone-matched square head crops, optionally use the Roboflow model as a teacher, review hard examples, and download a training-ready ZIP.</p>
   </header>
 
   <main>
@@ -118,8 +118,9 @@
         <div>
           <label for="detectorSelect">Detection model</label>
           <select id="detectorSelect">
-            <option value="skeleton">Skeleton pose detection - MoveNet MultiPose</option>
-            <option value="coco">Person detection - COCO-SSD boxes</option>
+            <option value="coco">Person detection - COCO-SSD boxes (phone match)</option>
+            <option value="skeleton">Skeleton pose detection - MoveNet MultiPose (phone match)</option>
+            <option value="head">Direct head detection - CrowdHuman YOLOv11 (phone match)</option>
           </select>
         </div>
 
@@ -135,8 +136,8 @@
         <div>
           <label for="cropMode">Crop mode</label>
           <select id="cropMode">
-            <option value="head_only">Head only</option>
-            <option value="head_shoulders">Head + shoulders context</option>
+            <option value="head_only" selected>Head only - deployment match</option>
+            <option value="head_shoulders">Head + shoulders - augmentation only</option>
           </select>
         </div>
 
@@ -165,7 +166,7 @@
 
         <div>
           <label for="poseThreshold">Pose score threshold</label>
-          <input id="poseThreshold" type="number" value="0.20" min="0.05" max="0.90" step="0.05" />
+          <input id="poseThreshold" type="number" value="0.18" min="0.05" max="0.90" step="0.05" />
         </div>
 
         <div>
@@ -174,8 +175,13 @@
         </div>
 
         <div>
-          <label for="cropScale">Crop padding scale</label>
-          <input id="cropScale" type="number" value="1.8" min="1.0" max="4.0" step="0.1" />
+          <label for="headThreshold">Direct head score threshold</label>
+          <input id="headThreshold" type="number" value="0.25" min="0.05" max="0.90" step="0.05" />
+        </div>
+
+        <div>
+          <label for="cropScale">Head crop scale (same as phone app)</label>
+          <input id="cropScale" type="number" value="1.00" min="0.75" max="2.00" step="0.05" />
         </div>
 
         <div>
@@ -235,7 +241,7 @@
       </div>
 
       <div class="note">
-        ZIP output uses only top-level class folders: <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b>. Crop method and detector type are stored in the filename and manifest, not as folders, so Roboflow will not create accidental classes.
+        <b>Deployment match:</b> use <b>Head only</b> with <b>1.00x</b> crop scale. COCO, MoveNet, and Direct Head modes now use the same square crop math, edge shifting, thresholds, and 224x224 output path as the phone app. <b>Head + shoulders</b> is intentionally augmentation-only and is marked separately in the manifest. ZIP output still uses only the top-level <b>headband/</b>, <b>no_headband/</b>, and <b>unsure/</b> class folders.
       </div>
     </section>
 
@@ -364,9 +370,10 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
 
   <script>
     const video = document.getElementById('video');
@@ -389,6 +396,7 @@
     const kpThreshold = document.getElementById('kpThreshold');
     const poseThreshold = document.getElementById('poseThreshold');
     const personThreshold = document.getElementById('personThreshold');
+    const headThreshold = document.getElementById('headThreshold');
     const cropScale = document.getElementById('cropScale');
     const outputSize = document.getElementById('outputSize');
     const loadModelBtn = document.getElementById('loadModelBtn');
@@ -443,6 +451,9 @@
 
     let skeletonDetector = null;
     let personDetector = null;
+    let headSession = null;
+    let headInputName = null;
+    let headModelState = 'not-loaded';
     let loadedDetectorType = null;
     let savedCrops = [];
     let scannedFrames = 0;
@@ -459,6 +470,14 @@
     let reviewIdCounter = 0;
 
     const TEACHER_CREDIT_PER_1000 = 0.0625;
+    // Same pinned CrowdHuman YOLOv11 head model used by the phone app.
+    const HEAD_MODEL_URL = 'https://huggingface.co/Sharath33/Person/resolve/45f16b67b6aebf326889cd9b20ef7704fea1797a/yolov11_phd_s.onnx';
+    const HEAD_MODEL_SIZE = 640;
+    const HEAD_NMS_IOU = 0.60;
+    const headCanvas = document.createElement('canvas');
+    headCanvas.width = HEAD_MODEL_SIZE;
+    headCanvas.height = HEAD_MODEL_SIZE;
+    const headCtx = headCanvas.getContext('2d', { willReadFrequently: true });
 
     teacherProxyUrl.value = localStorage.getItem('headbandTeacherProxyUrl') || '';
 
@@ -634,6 +653,8 @@
         `<b>Video time:</b> ${formatReviewTime(crop.videoTimeMs)}<br>` +
         `<b>Detector:</b> ${crop.detectorType || 'unknown'}<br>` +
         `<b>Crop mode:</b> ${crop.mode || 'unknown'}<br>` +
+        `<b>Crop recipe:</b> ${crop.cropRecipe || 'unknown'}${crop.phoneDeploymentMatch ? ' (PHONE MATCH)' : ' (augmentation)'}<br>` +
+        `<b>Crop scale:</b> ${(crop.cropScaleValue ?? 1).toFixed ? (crop.cropScaleValue ?? 1).toFixed(2) : crop.cropScaleValue}<br>` +
         `<b>Filename:</b> ${crop.name}`;
     }
 
@@ -842,21 +863,35 @@
       return { x: nx, y: ny, w: nw, h: nh };
     }
 
+    // Exact square-edge behavior used by the phone app: keep width == height,
+    // and shift the crop inward at image boundaries instead of clipping only
+    // one dimension and changing the aspect ratio.
+    function clampSquare(cx, cy, size) {
+      const maxW = video.videoWidth || 1;
+      const maxH = video.videoHeight || 1;
+      const side = Math.max(1, Math.min(size, maxW, maxH));
+      let x = cx - side / 2;
+      let y = cy - side / 2;
+      x = Math.max(0, Math.min(x, maxW - side));
+      y = Math.max(0, Math.min(y, maxH - side));
+      return { x, y, w: side, h: side };
+    }
+
     function keypointMap(pose) {
       const map = {};
-      for (const kp of pose.keypoints || []) map[kp.name] = kp;
+      for (const kp of pose.keypoints || []) if (kp.name) map[kp.name] = kp;
       return map;
     }
 
     function good(kp) {
-      return kp && (kp.score == null || kp.score >= Number(kpThreshold.value));
+      return !!kp && (kp.score == null || kp.score >= Number(kpThreshold.value));
     }
 
     function makeSkeletonCropRect(pose) {
       const k = keypointMap(pose);
       const headPoints = [k.nose, k.left_eye, k.right_eye, k.left_ear, k.right_ear].filter(good);
-      const shoulderPoints = [k.left_shoulder, k.right_shoulder].filter(good);
-      if (headPoints.length < 1) return null;
+      const shoulders = [k.left_shoulder, k.right_shoulder].filter(good);
+      if (!headPoints.length) return null;
 
       const xs = headPoints.map(p => p.x);
       const ys = headPoints.map(p => p.y);
@@ -864,42 +899,228 @@
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
+      const shoulderW = shoulders.length === 2 ? Math.abs(shoulders[0].x - shoulders[1].x) : 0;
+      const faceW = Math.max(maxX - minX, shoulderW * 0.33, 32);
+      const baseSize = faceW * 1.9;
+      const cx = (minX + maxX) / 2;
+      const phoneCy = (minY + maxY) / 2 + baseSize * 0.08;
+      const scale = Number(cropScale.value);
 
-      const shoulderWidth = shoulderPoints.length === 2 ? Math.abs(shoulderPoints[0].x - shoulderPoints[1].x) : 0;
-      const faceWidth = Math.max(maxX - minX, shoulderWidth * 0.33, 32);
-      let cropW = faceWidth * Number(cropScale.value);
-      let cropH = cropW;
-
-      const centerX = (minX + maxX) / 2;
-      let centerY = (minY + maxY) / 2;
-
-      if (cropMode.value === 'head_shoulders') {
-        cropW = Math.max(cropW, shoulderWidth * 0.8, faceWidth * 2.2);
-        cropH = cropW * 1.15;
-        centerY += cropH * 0.18;
-      } else {
-        centerY += cropH * 0.08;
+      if (cropMode.value === 'head_only') {
+        // Exact phone-app MoveNet crop recipe.
+        return clampSquare(cx, phoneCy, baseSize * scale);
       }
 
-      return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
+      // Optional square context augmentation. This is intentionally NOT the
+      // deployment crop and is tagged separately in the manifest.
+      const side = Math.max(baseSize * 1.55, shoulderW * 1.15, 48) * scale;
+      const cy = phoneCy + side * 0.13;
+      return clampSquare(cx, cy, side);
     }
 
     function makeCocoCropRect(prediction) {
-      const [bx, by, bw, bh] = prediction.bbox;
+      const [x, y, w, h] = prediction.bbox;
       const scale = Number(cropScale.value);
-      let cropW = bw * 0.34 * scale;
-      let cropH = cropW;
-      let centerX = bx + bw / 2;
-      let centerY = by + bh * 0.16;
+      const headCenterX = x + w * 0.50;
+      const headCenterY = y + h * 0.14;
+      const baseSide = Math.max(w * 1.16, h * 0.24, 32);
 
-      if (cropMode.value === 'head_shoulders') {
-        cropW = bw * 0.55 * scale;
-        cropH = cropW * 1.15;
-        centerY = by + bh * 0.24;
+      if (cropMode.value === 'head_only') {
+        // Exact phone-app COCO crop recipe.
+        return clampSquare(headCenterX, headCenterY, baseSide * scale);
       }
-      cropW = Math.max(32, cropW);
-      cropH = Math.max(32, cropH);
-      return clampRect(centerX - cropW / 2, centerY - cropH / 2, cropW, cropH, video.videoWidth, video.videoHeight);
+
+      const side = Math.max(baseSide * 1.45, w * 1.30, 48) * scale;
+      const cy = y + h * 0.22;
+      return clampSquare(headCenterX, cy, side);
+    }
+
+    function makeDirectHeadCropRect(detection) {
+      const r = detection.rect;
+      const cx = r.x + r.w / 2;
+      const phoneCy = r.y + r.h / 2;
+      const baseSide = Math.max(r.w, r.h) * 1.15;
+      const scale = Number(cropScale.value);
+
+      if (cropMode.value === 'head_only') {
+        // Exact phone-app direct-head crop recipe.
+        return clampSquare(cx, phoneCy, baseSide * scale);
+      }
+
+      const side = baseSide * 1.55 * scale;
+      const cy = phoneCy + side * 0.12;
+      return clampSquare(cx, cy, side);
+    }
+
+    function iou(a, b) {
+      const ax2 = a.x + a.w, ay2 = a.y + a.h;
+      const bx2 = b.x + b.w, by2 = b.y + b.h;
+      const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+      const x2 = Math.min(ax2, bx2), y2 = Math.min(ay2, by2);
+      const iw = Math.max(0, x2 - x1), ih = Math.max(0, y2 - y1);
+      const inter = iw * ih;
+      return inter / Math.max(1e-6, a.w * a.h + b.w * b.h - inter);
+    }
+
+    function nmsDetections(detections, iouThreshold) {
+      const sorted = [...detections].sort((a, b) => b.score - a.score);
+      const kept = [];
+      while (sorted.length) {
+        const best = sorted.shift();
+        kept.push(best);
+        for (let i = sorted.length - 1; i >= 0; i--) {
+          if (iou(best.rect, sorted[i].rect) > iouThreshold) sorted.splice(i, 1);
+        }
+      }
+      return kept;
+    }
+
+    async function ensureHeadDetector(forceReload = false) {
+      if (forceReload && headSession) {
+        try { await headSession.release(); } catch (_) {}
+        headSession = null;
+      }
+      if (headSession) return headSession;
+      if (!window.ort) throw new Error('ONNX Runtime Web failed to load.');
+
+      headModelState = 'loading';
+      setStatus('Loading the same direct CrowdHuman head detector used by the phone app (~38 MB)...');
+      try {
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.simd = true;
+        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
+        headSession = await ort.InferenceSession.create(HEAD_MODEL_URL, {
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'all'
+        });
+        headInputName = headSession.inputNames[0];
+        headModelState = 'loaded';
+        console.log('Head detector outputs:', headSession.outputNames);
+        return headSession;
+      } catch (err) {
+        headSession = null;
+        headModelState = 'failed';
+        throw err;
+      }
+    }
+
+    function makeHeadDetectorInput() {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const scale = Math.min(HEAD_MODEL_SIZE / vw, HEAD_MODEL_SIZE / vh);
+      const newW = Math.max(1, Math.round(vw * scale));
+      const newH = Math.max(1, Math.round(vh * scale));
+      const padLeft = Math.floor((HEAD_MODEL_SIZE - newW) / 2);
+      const padTop = Math.floor((HEAD_MODEL_SIZE - newH) / 2);
+
+      headCtx.fillStyle = 'rgb(114,114,114)';
+      headCtx.fillRect(0, 0, HEAD_MODEL_SIZE, HEAD_MODEL_SIZE);
+      headCtx.drawImage(video, 0, 0, vw, vh, padLeft, padTop, newW, newH);
+
+      const rgba = headCtx.getImageData(0, 0, HEAD_MODEL_SIZE, HEAD_MODEL_SIZE).data;
+      const plane = HEAD_MODEL_SIZE * HEAD_MODEL_SIZE;
+      const data = new Float32Array(plane * 3);
+      for (let i = 0, p = 0; i < rgba.length; i += 4, p++) {
+        // Same BGR NCHW preprocessing as the phone app.
+        data[p] = rgba[i + 2] / 255;
+        data[plane + p] = rgba[i + 1] / 255;
+        data[plane * 2 + p] = rgba[i] / 255;
+      }
+      return {
+        tensor: new ort.Tensor('float32', data, [1, 3, HEAD_MODEL_SIZE, HEAD_MODEL_SIZE]),
+        scale, padLeft, padTop
+      };
+    }
+
+    function analyzeYoloTensor(tensor) {
+      const dims = Array.from(tensor.dims || []);
+      let a, b;
+      if (dims.length === 3 && dims[0] === 1) {
+        a = dims[1]; b = dims[2];
+      } else if (dims.length === 2) {
+        a = dims[0]; b = dims[1];
+      } else {
+        return null;
+      }
+      const channelFirst = a <= b;
+      const channels = channelFirst ? a : b;
+      const anchors = channelFirst ? b : a;
+      const data = tensor.data;
+      const get = channelFirst
+        ? (anchor, channel) => data[channel * anchors + anchor]
+        : (anchor, channel) => data[anchor * channels + channel];
+      return { dims, channels, anchors, get };
+    }
+
+    function decodeHeadOutput(outputMap, prep) {
+      const threshold = Number(headThreshold.value);
+      const names = Object.keys(outputMap);
+      const shapesText = () => names.map(n => `${n}: [${Array.from(outputMap[n].dims || []).join(',')}]`).join('; ');
+      const analyzed = names
+        .map(name => ({ name, info: analyzeYoloTensor(outputMap[name]) }))
+        .filter(x => x.info);
+      if (!analyzed.length) throw new Error('No usable YOLO output tensor found. Outputs: ' + shapesText());
+
+      let boxInfo = null;
+      let scoreInfo = null;
+      const fused = analyzed
+        .filter(x => x.info.channels >= 5 && x.info.channels <= 64)
+        .sort((x, y) => x.info.channels - y.info.channels)[0];
+
+      if (fused) {
+        const info = fused.info;
+        boxInfo = { anchors: info.anchors, get: (i, c) => info.get(i, c) };
+        scoreInfo = { anchors: info.anchors, channels: info.channels - 4, get: (i, c) => info.get(i, 4 + c) };
+      } else {
+        const boxEntry = analyzed.find(x => x.info.channels === 4);
+        if (!boxEntry) throw new Error('Could not find fused YOLO output or 4-channel box output. Outputs: ' + shapesText());
+        const scoreEntry = analyzed
+          .filter(x => x !== boxEntry && x.info.anchors === boxEntry.info.anchors && x.info.channels >= 1)
+          .sort((x, y) => x.info.channels - y.info.channels)[0];
+        if (!scoreEntry) throw new Error('Found boxes but no matching class-score output. Outputs: ' + shapesText());
+        boxInfo = { anchors: boxEntry.info.anchors, get: (i, c) => boxEntry.info.get(i, c) };
+        scoreInfo = { anchors: scoreEntry.info.anchors, channels: scoreEntry.info.channels, get: (i, c) => scoreEntry.info.get(i, c) };
+      }
+
+      const vw = video.videoWidth, vh = video.videoHeight;
+      const detections = [];
+      const headIdx = scoreInfo.channels >= 2 ? 1 : 0;
+      for (let i = 0; i < boxInfo.anchors; i++) {
+        const headScore = Number(scoreInfo.get(i, headIdx));
+        if (!Number.isFinite(headScore) || headScore < threshold) continue;
+        if (scoreInfo.channels >= 2) {
+          const personScore = Number(scoreInfo.get(i, 0));
+          if (Number.isFinite(personScore) && headScore < personScore) continue;
+        }
+        const cx = Number(boxInfo.get(i, 0));
+        const cy = Number(boxInfo.get(i, 1));
+        const w = Number(boxInfo.get(i, 2));
+        const h = Number(boxInfo.get(i, 3));
+        if (![cx, cy, w, h].every(Number.isFinite) || w <= 0 || h <= 0) continue;
+
+        let x = (cx - w / 2 - prep.padLeft) / prep.scale;
+        let y = (cy - h / 2 - prep.padTop) / prep.scale;
+        let ww = w / prep.scale;
+        let hh = h / prep.scale;
+        const x2 = Math.min(vw, x + ww);
+        const y2 = Math.min(vh, y + hh);
+        x = Math.max(0, x);
+        y = Math.max(0, y);
+        ww = x2 - x;
+        hh = y2 - y;
+        if (ww < 3 || hh < 3) continue;
+        detections.push({ rect: { x, y, w: ww, h: hh }, score: headScore });
+      }
+      return nmsDetections(detections, HEAD_NMS_IOU).slice(0, 50);
+    }
+
+    async function detectDirectHeads() {
+      await ensureHeadDetector();
+      const prep = makeHeadDetectorInput();
+      const feeds = {};
+      feeds[headInputName] = prep.tensor;
+      const outputMap = await headSession.run(feeds);
+      return decodeHeadOutput(outputMap, prep);
     }
 
     function drawOverlay(detections) {
@@ -952,6 +1173,20 @@
           ctx.lineWidth = 2;
           ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
         });
+      } else if (loadedDetectorType === 'head') {
+        detections.forEach((head, index) => {
+          const raw = head.rect;
+          ctx.strokeStyle = '#00b4ff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(raw.x * scaleX + offsetX, raw.y * scaleY + offsetY, raw.w * scaleX, raw.h * scaleY);
+          ctx.fillStyle = '#00b4ff';
+          ctx.font = '14px Arial';
+          ctx.fillText(`Head ${index + 1} ${Math.round(head.score * 100)}%`, raw.x * scaleX + offsetX + 4, raw.y * scaleY + offsetY - 6);
+          const rect = makeDirectHeadCropRect(head);
+          ctx.strokeStyle = 'yellow';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(rect.x * scaleX + offsetX, rect.y * scaleY + offsetY, rect.w * scaleX, rect.h * scaleY);
+        });
       }
     }
 
@@ -970,7 +1205,7 @@
       const dy = (size - drawH) / 2;
       cctx.drawImage(video, rect.x, rect.y, rect.w, rect.h, dx, dy, drawW, drawH);
       return new Promise(resolve => {
-        c.toBlob(blob => resolve({ blob, dataUrl: c.toDataURL('image/jpeg', 0.9) }), 'image/jpeg', 0.9);
+        c.toBlob(blob => resolve({ blob, dataUrl: c.toDataURL('image/jpeg', 0.86) }), 'image/jpeg', 0.86);
       });
     }
 
@@ -984,11 +1219,17 @@
         const predictions = await personDetector.detect(video);
         return predictions.filter(p => p.class === 'person' && p.score >= Number(personThreshold.value));
       }
+      if (loadedDetectorType === 'head') {
+        return detectDirectHeads();
+      }
       return [];
     }
 
     function rectForDetection(det) {
-      return loadedDetectorType === 'skeleton' ? makeSkeletonCropRect(det) : makeCocoCropRect(det);
+      if (loadedDetectorType === 'skeleton') return makeSkeletonCropRect(det);
+      if (loadedDetectorType === 'coco') return makeCocoCropRect(det);
+      if (loadedDetectorType === 'head') return makeDirectHeadCropRect(det);
+      return null;
     }
 
     async function scanFrame(save = true) {
@@ -1013,6 +1254,10 @@
         const name = `${label}_${detectorType}_${mode}_t${timestamp}_p${i}_${id}.jpg`;
         const crop = {
           label, labelSource: 'default', mode, detectorType, name, blob, dataUrl, selected: false, reviewId: id,
+          cropRecipe: mode === 'head_only' ? 'phone_match_v1' : 'head_shoulders_augmentation_v1',
+          phoneDeploymentMatch: mode === 'head_only',
+          cropScaleValue: Number(cropScale.value), outputSizeValue: Number(outputSize.value),
+          detectorThreshold: detectorType === 'coco' ? Number(personThreshold.value) : detectorType === 'skeleton' ? Number(poseThreshold.value) : Number(headThreshold.value),
           videoTimeMs: timestamp, teacherStatus: 'unscored', teacherLabel: null, teacherConfidence: null,
           teacherHeadbandScore: null, teacherNoHeadbandScore: null, hardExample: false, teacherError: ''
         };
@@ -1234,30 +1479,36 @@
       const type = detectorSelect.value;
       loadModelBtn.disabled = true;
       try {
-        await tf.setBackend('webgl');
-        await tf.ready();
-        if (type === 'skeleton') {
-          setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
-          if (!skeletonDetector) {
-            skeletonDetector = await poseDetection.createDetector(
-              poseDetection.SupportedModels.MoveNet,
-              { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
-            );
-          }
-          loadedDetectorType = 'skeleton';
-          setStatus('Skeleton model loaded. Scan a paused frame or start auto export.');
+        if (type === 'head') {
+          setStatus('Loading direct CrowdHuman YOLOv11 head detector...');
+          await ensureHeadDetector();
+          loadedDetectorType = 'head';
+          setStatus('Direct head detector loaded. Head-only crops now match the phone app exactly.');
         } else {
-          setStatus('Loading COCO-SSD person detector...');
-          if (!personDetector) {
-            personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
+          await tf.setBackend('webgl');
+          await tf.ready();
+          if (type === 'skeleton') {
+            setStatus('Loading MoveNet MultiPose Lightning skeleton model...');
+            if (!skeletonDetector) {
+              skeletonDetector = await poseDetection.createDetector(
+                poseDetection.SupportedModels.MoveNet,
+                { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING }
+              );
+            }
+            loadedDetectorType = 'skeleton';
+            setStatus('Skeleton model loaded. Head-only crop math matches the phone app.');
+          } else {
+            setStatus('Loading COCO-SSD person detector...');
+            if (!personDetector) personDetector = await cocoSsd.load({ base: 'mobilenet_v2' });
+            loadedDetectorType = 'coco';
+            setStatus('COCO person detector loaded. Head-only crop math matches the phone app.');
           }
-          loadedDetectorType = 'coco';
-          setStatus('COCO person detector loaded. Scan a paused frame or start auto export.');
         }
         loadModelBtn.textContent = 'Model loaded';
         updateActionButtons();
       } catch (err) {
-        setStatus('Model load error: ' + err.message);
+        console.error(err);
+        setStatus('Model load error: ' + (err && err.message ? err.message : String(err)));
         loadModelBtn.disabled = false;
       }
     });
@@ -1397,6 +1648,11 @@
         label_source: c.labelSource || 'default',
         mode: c.mode,
         detector: c.detectorType,
+        crop_recipe: c.cropRecipe || (c.mode === 'head_only' ? 'phone_match_v1' : 'head_shoulders_augmentation_v1'),
+        phone_deployment_match: c.phoneDeploymentMatch ?? (c.mode === 'head_only'),
+        crop_scale: c.cropScaleValue ?? null,
+        output_size: c.outputSizeValue ?? null,
+        detector_threshold: c.detectorThreshold ?? null,
         video_time_ms: c.videoTimeMs ?? null,
         teacher_status: c.teacherStatus || 'unscored',
         teacher_label: c.teacherLabel ?? null,
@@ -1413,13 +1669,16 @@
       const csvEscape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const csvRows = [[
         'filename','label','label_source','teacher_status','teacher_label','teacher_confidence',
-        'teacher_headband_score','teacher_no_headband_score','hard_example','video_time_ms','detector','crop_mode'
+        'teacher_headband_score','teacher_no_headband_score','hard_example','video_time_ms','detector','crop_mode',
+        'crop_recipe','phone_deployment_match','crop_scale','output_size','detector_threshold'
       ]];
       for (const c of savedCrops) {
         csvRows.push([
           `${c.label}/${c.name}`, c.label, c.labelSource || 'default', c.teacherStatus || 'unscored',
           c.teacherLabel ?? '', c.teacherConfidence ?? '', c.teacherHeadbandScore ?? '', c.teacherNoHeadbandScore ?? '',
-          Boolean(c.hardExample), c.videoTimeMs ?? '', c.detectorType, c.mode
+          Boolean(c.hardExample), c.videoTimeMs ?? '', c.detectorType, c.mode,
+          c.cropRecipe || (c.mode === 'head_only' ? 'phone_match_v1' : 'head_shoulders_augmentation_v1'),
+          c.phoneDeploymentMatch ?? (c.mode === 'head_only'), c.cropScaleValue ?? '', c.outputSizeValue ?? '', c.detectorThreshold ?? ''
         ]);
       }
       zip.file('teacher_labels.csv', csvRows.map(row => row.map(csvEscape).join(',')).join('\n'));

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Headband Dataset Builder - Phone-Matched Crops</title>
+  <title>Headband Dataset Builder - Phone-Matched + Dedup</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #eee; }
@@ -54,6 +54,11 @@
     .note { padding: 10px; background: #171717; border-left: 3px solid #2d6cdf; margin-top: 10px; font-size: 13px; color: #bbb; line-height: 1.35; }
     .inline-row { display: flex; gap: 8px; align-items: center; }
     .teacher-box { grid-column: 1 / -1; padding: 11px; border: 1px solid #3d526f; border-radius: 9px; background: #151b24; }
+    .duplicate-box { grid-column: 1 / -1; padding: 11px; border: 1px solid #4c4c34; border-radius: 9px; background: #1d1b12; }
+    .duplicate-box h3 { margin: 0 0 8px; font-size: 14px; }
+    .duplicate-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .duplicate-grid .full { grid-column: 1 / -1; }
+    .thumb.duplicate { border-style: dashed; }
     .teacher-box h3 { margin: 0 0 8px; font-size: 14px; }
     .teacher-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .teacher-grid .full { grid-column: 1 / -1; }
@@ -87,7 +92,7 @@
 <body>
   <header>
     <h1>Headband Dataset Builder</h1>
-    <p>Load local video, extract phone-matched square head crops, optionally use the Roboflow model as a teacher, review hard examples, and download a training-ready ZIP.</p>
+    <p>Load local video, extract phone-matched square head crops, optionally use the Roboflow model as a teacher, review hard examples, automatically suppress near-duplicates, and download a training-ready ZIP.</p>
   </header>
 
   <main>
@@ -189,6 +194,37 @@
           <input id="outputSize" type="number" value="224" min="96" max="512" step="32" />
         </div>
 
+        <div class="duplicate-box">
+          <h3>Near-duplicate filtering</h3>
+          <div class="duplicate-grid">
+            <label class="checkline full"><input id="skipNearDuplicates" type="checkbox" checked /> Skip near-duplicate crops during capture</label>
+            <div>
+              <label for="duplicateSensitivity">Sensitivity</label>
+              <select id="duplicateSensitivity">
+                <option value="conservative">Conservative</option>
+                <option value="normal" selected>Normal</option>
+                <option value="aggressive">Aggressive</option>
+              </select>
+            </div>
+            <div>
+              <label for="duplicateRecentCount">Compare against recent crops</label>
+              <input id="duplicateRecentCount" type="number" value="100" min="10" max="1000" step="10" />
+            </div>
+            <div>
+              <label for="duplicateMinSeconds">Minimum time between nearly identical crops</label>
+              <input id="duplicateMinSeconds" type="number" value="1.0" min="0" max="30" step="0.1" />
+            </div>
+            <div>
+              <label>Automatic filtering rule</label>
+              <div class="status" style="margin:0; min-height:38px;">Visual hash + color similarity + nearby screen position. Different people in the same frame are not removed just because they look similar.</div>
+            </div>
+            <button id="findDuplicatesBtn" class="secondary">Find duplicates in saved crops</button>
+            <button id="reviewDuplicatesBtn" class="secondary">Review duplicate groups</button>
+            <button id="removeConservativeDuplicatesBtn" class="danger full">Remove conservative duplicates automatically</button>
+          </div>
+          <div id="duplicateStatus" class="status">Duplicate filter ready. Capture-time filtering runs before Roboflow, so skipped crops do not consume teacher credits.</div>
+        </div>
+
         <div class="teacher-box">
           <h3>Roboflow teacher-assisted capture</h3>
           <div class="teacher-grid">
@@ -237,6 +273,8 @@
         <div class="stat"><strong id="frameCount">0</strong><span>frames scanned</span></div>
         <div class="stat"><strong id="teacherCallCount">0</strong><span>teacher calls</span></div>
         <div class="stat"><strong id="hardCount">0</strong><span>hard examples</span></div>
+        <div class="stat"><strong id="duplicateSkipCount">0</strong><span>duplicates skipped</span></div>
+        <div class="stat"><strong id="duplicateGroupCount">0</strong><span>duplicate groups</span></div>
         <div class="stat"><strong id="creditEstimate">0.0000</strong><span>est. credits @ 0.0625/1k</span></div>
       </div>
 
@@ -270,6 +308,7 @@
           <select id="previewFilter">
             <option value="all">All crops</option>
             <option value="hard">Hard examples only</option>
+            <option value="duplicates">Probable duplicates only</option>
             <option value="unscored">Unscored / errors</option>
             <option value="headband">headband</option>
             <option value="no_headband">no_headband</option>
@@ -282,6 +321,7 @@
             <option value="newest">Newest first</option>
             <option value="uncertain">Most uncertain first</option>
             <option value="teacher_conf">Highest teacher confidence</option>
+            <option value="duplicate_groups">Duplicate groups</option>
           </select>
         </div>
       </div>
@@ -327,6 +367,14 @@
           </select>
         </div>
         <div>
+          <label for="reviewDuplicateFilter">Duplicate filter</label>
+          <select id="reviewDuplicateFilter">
+            <option value="all">Any crop</option>
+            <option value="duplicates">Probable duplicates only</option>
+            <option value="unique">Currently unique only</option>
+          </select>
+        </div>
+        <div>
           <label for="reviewSort">Sort review queue</label>
           <select id="reviewSort">
             <option value="uncertain">Most uncertain first</option>
@@ -337,6 +385,7 @@
             <option value="video_asc">Earliest video timestamp</option>
             <option value="video_desc">Latest video timestamp</option>
             <option value="hard_first">Hard examples first</option>
+            <option value="duplicate_groups">Duplicate groups</option>
           </select>
         </div>
       </div>
@@ -399,6 +448,16 @@
     const headThreshold = document.getElementById('headThreshold');
     const cropScale = document.getElementById('cropScale');
     const outputSize = document.getElementById('outputSize');
+    const skipNearDuplicates = document.getElementById('skipNearDuplicates');
+    const duplicateSensitivity = document.getElementById('duplicateSensitivity');
+    const duplicateRecentCount = document.getElementById('duplicateRecentCount');
+    const duplicateMinSeconds = document.getElementById('duplicateMinSeconds');
+    const findDuplicatesBtn = document.getElementById('findDuplicatesBtn');
+    const reviewDuplicatesBtn = document.getElementById('reviewDuplicatesBtn');
+    const removeConservativeDuplicatesBtn = document.getElementById('removeConservativeDuplicatesBtn');
+    const duplicateStatusEl = document.getElementById('duplicateStatus');
+    const duplicateSkipCountEl = document.getElementById('duplicateSkipCount');
+    const duplicateGroupCountEl = document.getElementById('duplicateGroupCount');
     const loadModelBtn = document.getElementById('loadModelBtn');
     const scanBtn = document.getElementById('scanBtn');
     const autoBtn = document.getElementById('autoBtn');
@@ -434,6 +493,7 @@
     const reviewLabelFilter = document.getElementById('reviewLabelFilter');
     const reviewTeacherFilter = document.getElementById('reviewTeacherFilter');
     const reviewSourceFilter = document.getElementById('reviewSourceFilter');
+    const reviewDuplicateFilter = document.getElementById('reviewDuplicateFilter');
     const reviewSort = document.getElementById('reviewSort');
     const reviewPhotoFrame = document.getElementById('reviewPhotoFrame');
     const reviewImage = document.getElementById('reviewImage');
@@ -468,6 +528,9 @@
     let reviewCurrentId = null;
     let reviewModeActive = false;
     let reviewIdCounter = 0;
+    let duplicateSkipped = 0;
+    let duplicateGroups = [];
+    let currentVideoName = '';
 
     const TEACHER_CREDIT_PER_1000 = 0.0625;
     // Same pinned CrowdHuman YOLOv11 head model used by the phone app.
@@ -480,6 +543,265 @@
     const headCtx = headCanvas.getContext('2d', { willReadFrequently: true });
 
     teacherProxyUrl.value = localStorage.getItem('headbandTeacherProxyUrl') || '';
+
+    const DUPLICATE_THRESHOLDS = {
+      conservative: { hamming: 4, colorMad: 8 },
+      normal: { hamming: 7, colorMad: 14 },
+      aggressive: { hamming: 11, colorMad: 22 }
+    };
+
+    function updateDuplicateStatus(message = '') {
+      duplicateSkipCountEl.textContent = duplicateSkipped;
+      duplicateGroupCountEl.textContent = duplicateGroups.length;
+      duplicateStatusEl.textContent = message || `Skipped ${duplicateSkipped} during capture | ${duplicateGroups.length} duplicate group${duplicateGroups.length === 1 ? '' : 's'} marked`;
+    }
+
+    function grayscale(r, g, b) {
+      return Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+    }
+
+    function fingerprintCanvas(sourceCanvas) {
+      const hashCanvas = document.createElement('canvas');
+      hashCanvas.width = 9;
+      hashCanvas.height = 8;
+      const hctx = hashCanvas.getContext('2d', { willReadFrequently: true });
+      hctx.drawImage(sourceCanvas, 0, 0, 9, 8);
+      const px = hctx.getImageData(0, 0, 9, 8).data;
+      let bits = '';
+      for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+          const a = (y * 9 + x) * 4;
+          const b = (y * 9 + x + 1) * 4;
+          bits += grayscale(px[a], px[a+1], px[a+2]) > grayscale(px[b], px[b+1], px[b+2]) ? '1' : '0';
+        }
+      }
+
+      const colorCanvas = document.createElement('canvas');
+      colorCanvas.width = 4;
+      colorCanvas.height = 4;
+      const cctx = colorCanvas.getContext('2d', { willReadFrequently: true });
+      cctx.drawImage(sourceCanvas, 0, 0, 4, 4);
+      const cp = cctx.getImageData(0, 0, 4, 4).data;
+      const color = [];
+      for (let i = 0; i < cp.length; i += 4) color.push(cp[i], cp[i+1], cp[i+2]);
+      return { dhash: bits, color };
+    }
+
+    async function fingerprintDataUrl(dataUrl) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth || 224;
+          c.height = img.naturalHeight || 224;
+          c.getContext('2d').drawImage(img, 0, 0);
+          try { resolve(fingerprintCanvas(c)); } catch (err) { reject(err); }
+        };
+        img.onerror = () => reject(new Error('Could not decode crop for duplicate fingerprint.'));
+        img.src = dataUrl;
+      });
+    }
+
+    async function ensureFingerprint(crop) {
+      if (!crop) return null;
+      if (crop.perceptualHash && Array.isArray(crop.colorSignature)) {
+        return { dhash: crop.perceptualHash, color: crop.colorSignature };
+      }
+      if (!crop.dataUrl) return null;
+      const fp = await fingerprintDataUrl(crop.dataUrl);
+      crop.perceptualHash = fp.dhash;
+      crop.colorSignature = fp.color;
+      return fp;
+    }
+
+    function hammingDistance(a, b) {
+      if (!a || !b || a.length !== b.length) return Infinity;
+      let d = 0;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d += 1;
+      return d;
+    }
+
+    function colorMeanAbsoluteDifference(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || !a.length) return Infinity;
+      let total = 0;
+      for (let i = 0; i < a.length; i++) total += Math.abs(a[i] - b[i]);
+      return total / a.length;
+    }
+
+    function fingerprintDistance(a, b) {
+      return { hamming: hammingDistance(a?.dhash, b?.dhash), colorMad: colorMeanAbsoluteDifference(a?.color, b?.color) };
+    }
+
+    function isNearDuplicateFingerprint(a, b, sensitivity = duplicateSensitivity.value) {
+      const t = DUPLICATE_THRESHOLDS[sensitivity] || DUPLICATE_THRESHOLDS.normal;
+      const d = fingerprintDistance(a, b);
+      return d.hamming <= t.hamming && d.colorMad <= t.colorMad;
+    }
+
+    function rectsSpatiallyClose(a, b) {
+      if (!a || !b) return true;
+      const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      const dist = Math.hypot(acx - bcx, acy - bcy);
+      return dist <= Math.max(a.w, a.h, b.w, b.h) * 0.75;
+    }
+
+    function findCaptureDuplicate(fp, timestamp, rect, detectorType, mode) {
+      if (!skipNearDuplicates.checked) return null;
+      const recent = Math.max(10, Math.min(1000, Number(duplicateRecentCount.value) || 100));
+      const maxDt = Math.max(0, Number(duplicateMinSeconds.value) || 0) * 1000;
+      let checked = 0;
+      for (let i = savedCrops.length - 1; i >= 0 && checked < recent; i--, checked++) {
+        const old = savedCrops[i];
+        if (!old?.perceptualHash || !Array.isArray(old.colorSignature)) continue;
+        if ((old.videoSourceName || '') !== currentVideoName) continue;
+        if (old.detectorType !== detectorType || old.mode !== mode) continue;
+        if (maxDt > 0 && Math.abs((old.videoTimeMs ?? -1e12) - timestamp) > maxDt) continue;
+        if (!rectsSpatiallyClose(old.sourceRect, rect)) continue;
+        const oldFp = { dhash: old.perceptualHash, color: old.colorSignature };
+        if (isNearDuplicateFingerprint(fp, oldFp)) return old;
+      }
+      return null;
+    }
+
+    function clearDuplicateMarks() {
+      for (const crop of savedCrops) {
+        crop.duplicateGroupId = null;
+        crop.duplicateGroupSize = 0;
+      }
+      duplicateGroups = [];
+      updateDuplicateStatus();
+    }
+
+    function normalizeDuplicateMarksAfterDeletion() {
+      const byId = new Map();
+      savedCrops.forEach((crop, index) => {
+        if (!crop.duplicateGroupId) return;
+        if (!byId.has(crop.duplicateGroupId)) byId.set(crop.duplicateGroupId, []);
+        byId.get(crop.duplicateGroupId).push(index);
+      });
+      duplicateGroups = [];
+      for (const [id, indexes] of byId.entries()) {
+        if (indexes.length < 2) {
+          for (const idx of indexes) {
+            savedCrops[idx].duplicateGroupId = null;
+            savedCrops[idx].duplicateGroupSize = 0;
+          }
+          continue;
+        }
+        duplicateGroups.push(indexes);
+        for (const idx of indexes) savedCrops[idx].duplicateGroupSize = indexes.length;
+      }
+      duplicateGroups.sort((a,b) => b.length - a.length);
+      updateDuplicateStatus();
+    }
+
+    async function findDuplicateGroups(sensitivity = duplicateSensitivity.value) {
+      clearDuplicateMarks();
+      const n = savedCrops.length;
+      if (n < 2) return [];
+      updateDuplicateStatus('Computing perceptual fingerprints...');
+      for (let i = 0; i < n; i++) await ensureFingerprint(savedCrops[i]);
+
+      const parent = Array.from({ length: n }, (_, i) => i);
+      const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+      const union = (a,b) => { a=find(a); b=find(b); if (a !== b) parent[b]=a; };
+      const recent = Math.max(10, Math.min(1000, Number(duplicateRecentCount.value) || 100));
+      let comparisons = 0;
+      for (let i = 0; i < n; i++) {
+        const a = savedCrops[i];
+        const afp = { dhash: a.perceptualHash, color: a.colorSignature };
+        let checked = 0;
+        for (let j = i - 1; j >= 0 && checked < recent; j--, checked++) {
+          const b = savedCrops[j];
+          if ((a.videoSourceName || '') !== (b.videoSourceName || '')) continue;
+          if (a.detectorType !== b.detectorType || a.mode !== b.mode) continue;
+          comparisons += 1;
+          const bfp = { dhash: b.perceptualHash, color: b.colorSignature };
+          if (isNearDuplicateFingerprint(afp, bfp, sensitivity)) union(i,j);
+        }
+      }
+
+      const map = new Map();
+      for (let i = 0; i < n; i++) {
+        const root = find(i);
+        if (!map.has(root)) map.set(root, []);
+        map.get(root).push(i);
+      }
+      duplicateGroups = [...map.values()].filter(g => g.length > 1).sort((a,b) => b.length - a.length);
+      duplicateGroups.forEach((group, gi) => {
+        const id = `D${gi + 1}`;
+        for (const idx of group) {
+          savedCrops[idx].duplicateGroupId = id;
+          savedCrops[idx].duplicateGroupSize = group.length;
+        }
+      });
+      updateDuplicateStatus(`Found ${duplicateGroups.length} duplicate group${duplicateGroups.length === 1 ? '' : 's'} across ${comparisons.toLocaleString()} comparisons using ${sensitivity} sensitivity.`);
+      refreshPreview();
+      return duplicateGroups;
+    }
+
+    function cropPreferenceScore(crop) {
+      let score = 0;
+      if (crop.labelSource === 'manual') score += 1000;
+      else if (crop.labelSource === 'teacher') score += 500;
+      else if (crop.labelSource === 'teacher_review') score += 250;
+      if (crop.teacherStatus === 'scored') score += 100;
+      if (Number.isFinite(crop.teacherConfidence)) score += crop.teacherConfidence * 10;
+      if (crop.phoneDeploymentMatch) score += 5;
+      return score;
+    }
+
+    async function removeConservativeDuplicates() {
+      if (savedCrops.length < 2) return 0;
+      removeConservativeDuplicatesBtn.disabled = true;
+      try {
+        updateDuplicateStatus('Scanning strict conservative duplicates for safe automatic removal...');
+        for (const crop of savedCrops) await ensureFingerprint(crop);
+        const recent = Math.max(10, Math.min(1000, Number(duplicateRecentCount.value) || 100));
+        const maxDt = Math.max(0.1, Number(duplicateMinSeconds.value) || 1) * 1000;
+        const parent = Array.from({ length: savedCrops.length }, (_, i) => i);
+        const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+        const union = (a,b) => { a=find(a); b=find(b); if (a !== b) parent[b]=a; };
+        for (let i = 0; i < savedCrops.length; i++) {
+          const a = savedCrops[i];
+          const afp = { dhash: a.perceptualHash, color: a.colorSignature };
+          let checked = 0;
+          for (let j = i - 1; j >= 0 && checked < recent; j--, checked++) {
+            const b = savedCrops[j];
+            if ((a.videoSourceName || '') !== (b.videoSourceName || '')) continue;
+            if (a.detectorType !== b.detectorType || a.mode !== b.mode) continue;
+            if (Math.abs((a.videoTimeMs ?? -1e12) - (b.videoTimeMs ?? 1e12)) > maxDt) continue;
+            if (!rectsSpatiallyClose(a.sourceRect, b.sourceRect)) continue;
+            const bfp = { dhash: b.perceptualHash, color: b.colorSignature };
+            if (isNearDuplicateFingerprint(afp, bfp, 'conservative')) union(i,j);
+          }
+        }
+        const groups = new Map();
+        for (let i = 0; i < savedCrops.length; i++) {
+          const root = find(i);
+          if (!groups.has(root)) groups.set(root, []);
+          groups.get(root).push(i);
+        }
+        const remove = new Set();
+        let skippedConflictGroups = 0;
+        for (const g of groups.values()) {
+          if (g.length < 2) continue;
+          const labels = new Set(g.map(i => savedCrops[i].label));
+          if (labels.size > 1) { skippedConflictGroups += 1; continue; }
+          const ranked = [...g].sort((ia, ib) => cropPreferenceScore(savedCrops[ib]) - cropPreferenceScore(savedCrops[ia]) || ia - ib);
+          for (const idx of ranked.slice(1)) remove.add(idx);
+        }
+        const removedCrops = [...remove].map(i => savedCrops[i]);
+        teacherQueue = teacherQueue.filter(c => !removedCrops.includes(c));
+        savedCrops = savedCrops.filter((_, i) => !remove.has(i));
+        await findDuplicateGroups(duplicateSensitivity.value);
+        updateDuplicateStatus(`Removed ${remove.size} conservative near-duplicate crop${remove.size === 1 ? '' : 's'}. ${skippedConflictGroups} conflicting-label group${skippedConflictGroups === 1 ? '' : 's'} left untouched.`);
+        return remove.size;
+      } finally {
+        removeConservativeDuplicatesBtn.disabled = false;
+      }
+    }
 
     function normalizeLabel(v) {
       return String(v || '').trim().toLowerCase().replace(/[ -]+/g, '_');
@@ -585,6 +907,10 @@
       if (sourceFilter === 'not_manual') entries = entries.filter(e => e.crop.labelSource !== 'manual');
       else if (sourceFilter !== 'all') entries = entries.filter(e => (e.crop.labelSource || 'default') === sourceFilter);
 
+      const duplicateFilter = reviewDuplicateFilter.value;
+      if (duplicateFilter === 'duplicates') entries = entries.filter(e => Boolean(e.crop.duplicateGroupId));
+      else if (duplicateFilter === 'unique') entries = entries.filter(e => !e.crop.duplicateGroupId);
+
       const sort = reviewSort.value;
       if (sort === 'uncertain') {
         entries.sort((a,b) => {
@@ -598,6 +924,7 @@
       else if (sort === 'video_asc') entries.sort((a,b) => (a.crop.videoTimeMs ?? Number.MAX_SAFE_INTEGER) - (b.crop.videoTimeMs ?? Number.MAX_SAFE_INTEGER) || a.index - b.index);
       else if (sort === 'video_desc') entries.sort((a,b) => (b.crop.videoTimeMs ?? -1) - (a.crop.videoTimeMs ?? -1) || b.index - a.index);
       else if (sort === 'hard_first') entries.sort((a,b) => Number(updateHardFlag(b.crop)) - Number(updateHardFlag(a.crop)) || a.index - b.index);
+      else if (sort === 'duplicate_groups') entries.sort((a,b) => String(a.crop.duplicateGroupId || 'ZZZ').localeCompare(String(b.crop.duplicateGroupId || 'ZZZ'), undefined, { numeric: true }) || (a.crop.videoTimeMs ?? 0) - (b.crop.videoTimeMs ?? 0) || a.index - b.index);
       else entries.sort((a,b) => a.index - b.index);
 
       return entries;
@@ -650,6 +977,8 @@
         : crop.teacherStatus === 'error' ? `error - ${crop.teacherError || 'unknown error'}` : crop.teacherStatus || 'unscored';
       reviewMeta.innerHTML =
         `<b>Teacher:</b> ${teacherLine}<br>` +
+        `<b>Duplicate group:</b> ${crop.duplicateGroupId ? `${crop.duplicateGroupId} (${crop.duplicateGroupSize || '?'} crops)` : 'none marked'}<br>` +
+        `<b>Video:</b> ${crop.videoSourceName || 'unknown'}<br>` +
         `<b>Video time:</b> ${formatReviewTime(crop.videoTimeMs)}<br>` +
         `<b>Detector:</b> ${crop.detectorType || 'unknown'}<br>` +
         `<b>Crop mode:</b> ${crop.mode || 'unknown'}<br>` +
@@ -692,6 +1021,7 @@
       const crop = entry.crop;
       teacherQueue = teacherQueue.filter(c => c !== crop);
       savedCrops.splice(entry.index, 1);
+      normalizeDuplicateMarksAfterDeletion();
       reviewCurrentId = null;
       refreshPreview();
       if (nextId) renderReview(nextId);
@@ -1204,8 +1534,9 @@
       const dx = (size - drawW) / 2;
       const dy = (size - drawH) / 2;
       cctx.drawImage(video, rect.x, rect.y, rect.w, rect.h, dx, dy, drawW, drawH);
+      const fingerprint = fingerprintCanvas(c);
       return new Promise(resolve => {
-        c.toBlob(blob => resolve({ blob, dataUrl: c.toDataURL('image/jpeg', 0.86) }), 'image/jpeg', 0.86);
+        c.toBlob(blob => resolve({ blob, dataUrl: c.toDataURL('image/jpeg', 0.86), fingerprint }), 'image/jpeg', 0.86);
       });
     }
 
@@ -1248,8 +1579,14 @@
       for (let i = 0; i < detections.length; i++) {
         const rect = rectForDetection(detections[i]);
         if (!rect) continue;
-        const { blob, dataUrl } = await cropToBlob(rect);
+        const { blob, dataUrl, fingerprint } = await cropToBlob(rect);
         const timestamp = Math.round(video.currentTime * 1000);
+        const duplicate = findCaptureDuplicate(fingerprint, timestamp, rect, detectorType, mode);
+        if (duplicate) {
+          duplicateSkipped += 1;
+          updateDuplicateStatus(`Skipped near duplicate at ${formatReviewTime(timestamp)}; matched ${duplicate.name}.`);
+          continue;
+        }
         const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const name = `${label}_${detectorType}_${mode}_t${timestamp}_p${i}_${id}.jpg`;
         const crop = {
@@ -1258,7 +1595,9 @@
           phoneDeploymentMatch: mode === 'head_only',
           cropScaleValue: Number(cropScale.value), outputSizeValue: Number(outputSize.value),
           detectorThreshold: detectorType === 'coco' ? Number(personThreshold.value) : detectorType === 'skeleton' ? Number(poseThreshold.value) : Number(headThreshold.value),
-          videoTimeMs: timestamp, teacherStatus: 'unscored', teacherLabel: null, teacherConfidence: null,
+          videoTimeMs: timestamp, videoSourceName: currentVideoName, sourceRect: { ...rect },
+          perceptualHash: fingerprint.dhash, colorSignature: fingerprint.color, duplicateGroupId: null, duplicateGroupSize: 0,
+          teacherStatus: 'unscored', teacherLabel: null, teacherConfidence: null,
           teacherHeadbandScore: null, teacherNoHeadbandScore: null, hardExample: false, teacherError: ''
         };
         savedCrops.push(crop);
@@ -1269,7 +1608,7 @@
         }
       }
       refreshPreview();
-      setStatus(`Scanned frame: ${detections.length} detections, ${savedCrops.length} total crops saved.`);
+      setStatus(`Scanned frame: ${detections.length} detections, ${savedCrops.length} total crops saved, ${duplicateSkipped} near-duplicates skipped.`);
       return detections;
     }
 
@@ -1288,7 +1627,7 @@
     function buildPreviewItem(crop, index) {
       updateHardFlag(crop);
       const item = document.createElement('div');
-      item.className = `thumb${crop.selected ? ' selected' : ''}${crop.hardExample ? ' hard' : ''}${crop.teacherStatus === 'error' ? ' teacher-error' : ''}`;
+      item.className = `thumb${crop.selected ? ' selected' : ''}${crop.hardExample ? ' hard' : ''}${crop.teacherStatus === 'error' ? ' teacher-error' : ''}${crop.duplicateGroupId ? ' duplicate' : ''}`;
       item.dataset.index = index;
       item.dataset.label = crop.label;
       const meta = teacherMetaText(crop);
@@ -1303,7 +1642,7 @@
             <option value="unsure">unsure</option>
           </select>
         </div>
-        <div class="teacher-meta" title="${meta}">${meta}<br>Label source: ${crop.labelSource || 'default'}</div>
+        <div class="teacher-meta" title="${meta}">${meta}<br>Label source: ${crop.labelSource || 'default'}${crop.duplicateGroupId ? `<br>Duplicate: ${crop.duplicateGroupId} (${crop.duplicateGroupSize})` : ''}</div>
         <div class="meta" title="${crop.name}">${crop.name}</div>`;
       item.querySelector('.crop-label').value = crop.label;
       item.addEventListener('click', (e) => {
@@ -1317,6 +1656,7 @@
         const idx = Number(item.dataset.index);
         if (!savedCrops[idx]) return;
         savedCrops.splice(idx, 1);
+        normalizeDuplicateMarksAfterDeletion();
         refreshPreview();
       });
       item.querySelector('.toggle-label').addEventListener('click', (e) => {
@@ -1361,6 +1701,7 @@
       let entries = savedCrops.map((crop, index) => ({ crop, index }));
       const filter = previewFilter.value;
       if (filter === 'hard') entries = entries.filter(e => updateHardFlag(e.crop));
+      else if (filter === 'duplicates') entries = entries.filter(e => Boolean(e.crop.duplicateGroupId));
       else if (filter === 'unscored') entries = entries.filter(e => ['unscored','queued','pending','error'].includes(e.crop.teacherStatus));
       else if (['headband','no_headband','unsure'].includes(filter)) entries = entries.filter(e => e.crop.label === filter);
 
@@ -1373,6 +1714,8 @@
         });
       } else if (sort === 'teacher_conf') {
         entries.sort((a,b) => (b.crop.teacherConfidence ?? -1) - (a.crop.teacherConfidence ?? -1) || b.index - a.index);
+      } else if (sort === 'duplicate_groups') {
+        entries.sort((a,b) => String(a.crop.duplicateGroupId || 'ZZZ').localeCompare(String(b.crop.duplicateGroupId || 'ZZZ'), undefined, { numeric: true }) || (a.crop.videoTimeMs ?? 0) - (b.crop.videoTimeMs ?? 0) || b.index - a.index);
       } else {
         entries.sort((a,b) => b.index - a.index);
       }
@@ -1392,6 +1735,7 @@
 
     function deleteSelected() {
       savedCrops = savedCrops.filter(c => !c.selected);
+      normalizeDuplicateMarksAfterDeletion();
       refreshPreview();
     }
 
@@ -1417,6 +1761,7 @@
     videoFile.addEventListener('change', () => {
       const file = videoFile.files[0];
       if (!file) return;
+      currentVideoName = file.name || 'local-video';
       video.src = URL.createObjectURL(file);
       video.pause();
       timeline.value = 0;
@@ -1538,6 +1883,8 @@
     clearBtn.addEventListener('click', () => {
       savedCrops = [];
       teacherQueue = [];
+      duplicateSkipped = 0;
+      clearDuplicateMarks();
       refreshPreview();
       updateTeacherStatus('Cleared saved crops');
       setStatus('Cleared saved crops.');
@@ -1598,6 +1945,35 @@
     previewFilter.addEventListener('change', refreshPreview);
     previewSort.addEventListener('change', refreshPreview);
 
+    findDuplicatesBtn.addEventListener('click', async () => {
+      findDuplicatesBtn.disabled = true;
+      try { await findDuplicateGroups(duplicateSensitivity.value); }
+      catch (err) { updateDuplicateStatus('Duplicate scan error: ' + (err?.message || String(err))); }
+      finally { findDuplicatesBtn.disabled = false; }
+    });
+
+    reviewDuplicatesBtn.addEventListener('click', async () => {
+      if (!duplicateGroups.length) await findDuplicateGroups(duplicateSensitivity.value);
+      reviewDuplicateFilter.value = 'duplicates';
+      reviewSort.value = 'duplicate_groups';
+      resetReviewQueue();
+      setReviewMode(true);
+      reviewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    removeConservativeDuplicatesBtn.addEventListener('click', async () => {
+      try {
+        const count = await removeConservativeDuplicates();
+        setStatus(`Removed ${count} conservative near-duplicate crop${count === 1 ? '' : 's'}.`);
+      } catch (err) {
+        updateDuplicateStatus('Automatic duplicate removal error: ' + (err?.message || String(err)));
+      }
+    });
+
+    duplicateSensitivity.addEventListener('change', () => updateDuplicateStatus('Sensitivity changed. Run Find duplicates to refresh existing-group marks.'));
+    duplicateRecentCount.addEventListener('change', () => updateDuplicateStatus('Comparison window changed.'));
+    duplicateMinSeconds.addEventListener('change', () => updateDuplicateStatus('Capture spacing changed.'));
+
     function resetReviewQueue() {
       reviewCursor = 0;
       reviewCurrentId = null;
@@ -1606,6 +1982,7 @@
     reviewLabelFilter.addEventListener('change', resetReviewQueue);
     reviewTeacherFilter.addEventListener('change', resetReviewQueue);
     reviewSourceFilter.addEventListener('change', resetReviewQueue);
+    reviewDuplicateFilter.addEventListener('change', resetReviewQueue);
     reviewSort.addEventListener('change', resetReviewQueue);
     reviewActiveBtn.addEventListener('click', () => setReviewMode(!reviewModeActive));
     reviewHeadbandBtn.addEventListener('click', () => reviewApplyLabel('headband'));
@@ -1654,6 +2031,10 @@
         output_size: c.outputSizeValue ?? null,
         detector_threshold: c.detectorThreshold ?? null,
         video_time_ms: c.videoTimeMs ?? null,
+        video_source: c.videoSourceName || null,
+        perceptual_hash: c.perceptualHash || null,
+        duplicate_group: c.duplicateGroupId || null,
+        duplicate_group_size: c.duplicateGroupSize || 0,
         teacher_status: c.teacherStatus || 'unscored',
         teacher_label: c.teacherLabel ?? null,
         teacher_confidence: c.teacherConfidence ?? null,
@@ -1670,7 +2051,7 @@
       const csvRows = [[
         'filename','label','label_source','teacher_status','teacher_label','teacher_confidence',
         'teacher_headband_score','teacher_no_headband_score','hard_example','video_time_ms','detector','crop_mode',
-        'crop_recipe','phone_deployment_match','crop_scale','output_size','detector_threshold'
+        'crop_recipe','phone_deployment_match','crop_scale','output_size','detector_threshold','video_source','perceptual_hash','duplicate_group','duplicate_group_size'
       ]];
       for (const c of savedCrops) {
         csvRows.push([
@@ -1678,7 +2059,8 @@
           c.teacherLabel ?? '', c.teacherConfidence ?? '', c.teacherHeadbandScore ?? '', c.teacherNoHeadbandScore ?? '',
           Boolean(c.hardExample), c.videoTimeMs ?? '', c.detectorType, c.mode,
           c.cropRecipe || (c.mode === 'head_only' ? 'phone_match_v1' : 'head_shoulders_augmentation_v1'),
-          c.phoneDeploymentMatch ?? (c.mode === 'head_only'), c.cropScaleValue ?? '', c.outputSizeValue ?? '', c.detectorThreshold ?? ''
+          c.phoneDeploymentMatch ?? (c.mode === 'head_only'), c.cropScaleValue ?? '', c.outputSizeValue ?? '', c.detectorThreshold ?? '',
+          c.videoSourceName || '', c.perceptualHash || '', c.duplicateGroupId || '', c.duplicateGroupSize || 0
         ]);
       }
       zip.file('teacher_labels.csv', csvRows.map(row => row.map(csvEscape).join(',')).join('\n'));
@@ -1693,6 +2075,7 @@
     });
 
     updateTeacherStatus(teacherProxyUrl.value ? 'Saved teacher proxy URL loaded' : 'Teacher off - add the Worker proxy URL to enable it');
+    updateDuplicateStatus();
     refreshPreview();
     renderReview();
   </script>
